@@ -82,7 +82,8 @@ async function boot() {
   }
 
   const world = initWorld3D({ R0, LANDMARKS, REAL_STATIONS });
-  world.setBikeColor(getActiveBike().color);
+  const initBike = getActiveBike();
+  world.setBikeModel(initBike.id, initBike.color);
 
   let drivingRef = null;
   const tablet = initTablet({
@@ -96,8 +97,11 @@ async function boot() {
     },
   });
 
-  // ---- Garage ----
+  // ---- Garage & Settings ----
   const garageEl = $("garage");
+  const settingsEl = $("settings");
+  let highQuality = true;
+
   function renderGarage() {
     $("garMoney").textContent = state.money.toLocaleString("vi-VN") + "đ";
     const list = $("garList");
@@ -130,7 +134,7 @@ async function boot() {
         btn.textContent = "Chọn xe này";
         btn.onclick = () => {
           profile.activeBike = b.id;
-          world.setBikeColor(b.color);
+          world.setBikeModel(b.id, b.color);
           saveProfile();
           renderGarage();
           toast("Đã đổi sang " + b.name, "var(--ok)");
@@ -145,7 +149,7 @@ async function boot() {
           state.money -= b.price;
           profile.ownedBikes.push(b.id);
           profile.activeBike = b.id;
-          world.setBikeColor(b.color);
+          world.setBikeModel(b.id, b.color);
           saveProfile();
           playSuccess(state.soundOn);
           renderGarage();
@@ -163,17 +167,39 @@ async function boot() {
       return;
     }
     if (tablet.isTabOpen()) tablet.toggleTablet();
+    settingsEl.classList.remove("open");
     renderGarage();
     garageEl.classList.add("open");
   }
+
+  function toggleSettings() {
+    if (settingsEl.classList.contains("open")) {
+      settingsEl.classList.remove("open");
+      return;
+    }
+    if (tablet.isTabOpen()) tablet.toggleTablet();
+    garageEl.classList.remove("open");
+    settingsEl.classList.add("open");
+  }
+
   $("garBtn").onclick = toggleGarage;
   $("gx").onclick = () => garageEl.classList.remove("open");
+  $("setBtn").onclick = toggleSettings;
+  $("sx").onclick = () => settingsEl.classList.remove("open");
+
+  $("qualBtn").onclick = () => {
+    highQuality = !highQuality;
+    world.setQuality(highQuality);
+    $("qualBtn").textContent = highQuality ? "✨ Cao" : "⚡ Thấp (Nhẹ)";
+    toast("Đồ họa: " + (highQuality ? "Cao (Bóng đổ)" : "Thấp (Tối ưu FPS)"), "var(--ok)");
+  };
 
   const keys = {};
   drivingRef = createDriving({
     world,
     keys,
-    isModalOpen: () => tablet.isTabOpen() || garageEl.classList.contains("open"),
+    isModalOpen: () =>
+      tablet.isTabOpen() || garageEl.classList.contains("open") || settingsEl.classList.contains("open"),
   });
 
   $("re").onclick = drivingRef.reposition;
@@ -181,19 +207,21 @@ async function boot() {
   $("hornBtn").onclick = drivingRef.honk;
   $("hintBtn").onclick = () => {
     state.hudHint = !state.hudHint;
-    $("hintBtn").textContent = "👁️ Gợi ý HUD: " + (state.hudHint ? "BẬT" : "TẮT") + " (H)";
+    $("hintBtn").textContent = (state.hudHint ? "👁️ BẬT" : "👁️ TẮT") + " (H)";
   };
   $("sndBtn").onclick = () => {
     state.soundOn = !state.soundOn;
     setSoundEnabled(state.soundOn);
-    $("sndBtn").textContent = (state.soundOn ? "🔊 Âm thanh: BẬT" : "🔇 Âm thanh: TẮT") + " (M)";
+    $("sndBtn").textContent = (state.soundOn ? "🔊 BẬT" : "🔇 TẮT") + " (M)";
   };
 
   addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     keys[k] = 1;
+    if (e.key === "Escape") toggleSettings();
     if (k === "t") {
-      if (garageEl.classList.contains("open")) garageEl.classList.remove("open");
+      garageEl.classList.remove("open");
+      settingsEl.classList.remove("open");
       tablet.toggleTablet();
     }
     if (k === "g") toggleGarage();
@@ -273,7 +301,6 @@ async function boot() {
       fb.classList.toggle("show", nearSt && state.fuel < 99);
       if (nearSt && state.fuel < 99) fb.textContent = "⛽ Đổ đầy bình (-" + cost.toLocaleString("vi-VN") + "đ) (F)";
 
-      const kmh = Math.round(Math.abs(spd) * 3.6);
       const streetTxt = state.hudHint ? near : "<i>Đọc biển báo ngã tư</i>";
       $("statTxt").innerHTML =
         "Hạng <b style='color:var(--acc)'>" +
@@ -284,11 +311,9 @@ async function boot() {
         state.learned.size +
         "/" +
         tablet.STS.length +
-        "</b> · <b>" +
-        kmh +
-        " km/h</b> (" +
+        "</b> · " +
         bike.name +
-        ")<br>Đường: <b>" +
+        "<br>Đường: <b>" +
         streetTxt +
         "</b> · <b>" +
         fps +
@@ -298,10 +323,13 @@ async function boot() {
 
     $("xp").style.width = (state.xp % 100) + "%";
     $("xpLbl").textContent = (state.xp % 100) + "%";
-    const fp = Math.round(state.fuel);
-    $("fuelBar").style.width = fp + "%";
-    $("fuelLbl").textContent = fp + "%";
-    $("fuelBar").style.background = fp > 35 ? "var(--ok)" : fp > 15 ? "var(--acc)" : "var(--bad)";
+    $("spdVal").textContent = Math.round(Math.abs(spd) * 3.6);
+    const fp = Math.max(0, Math.min(100, Math.round(state.fuel)));
+    const fuelColor = fp > 35 ? "var(--ok)" : fp > 15 ? "var(--acc)" : "var(--bad)";
+    $("fuelArc").style.strokeDashoffset = (326.73 * (1 - fp / 100)).toFixed(1);
+    $("fuelArc").style.stroke = fuelColor;
+    $("fuelPct").textContent = "⛽ " + fp + "%";
+    $("fuelPct").style.color = fuelColor;
   })(last);
 }
 

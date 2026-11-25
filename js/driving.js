@@ -124,6 +124,8 @@ export function createDriving({ world, keys, isModalOpen }) {
     const targetLean = -steer * Math.min(1, Math.abs(speed) / 14) * 0.36;
     lean += (targetLean - lean) * Math.min(1, 10 * dt);
     me.userData.body.rotation.z = lean;
+    if (me.userData.frontFork) me.userData.frontFork.rotation.y = steer * 0.32;
+    if (world.setBrakeLight) world.setBrakeLight(!!bk && speed > 0.3);
     me.userData.w1.rotation.x += speed * dt * 2.2;
     me.userData.w2.rotation.x += speed * dt * 2.2;
 
@@ -167,6 +169,7 @@ export function createDriving({ world, keys, isModalOpen }) {
     $("re").classList.toggle("pulse", stuck > 1.2);
     $("tb").classList.toggle("dim", Math.abs(speed) > 0.8);
     ground.position.set(me.position.x, 0, me.position.z);
+    if (world.updateSunTarget) world.updateSunTarget(me.position.x, me.position.z);
     stream(me.position.x, me.position.z);
 
     npcs.forEach((n) => {
