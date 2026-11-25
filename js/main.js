@@ -1,6 +1,7 @@
 import {
   RANK,
   BIKES,
+  ROAD_LIMITS,
   geo,
   initGeoFromCity,
   profile,
@@ -15,6 +16,7 @@ import { setSoundEnabled, updateEngineSound, playSuccess } from "./audio.js";
 import { initWorld3D, dseg } from "./world3d.js";
 import { initTablet } from "./tablet.js";
 import { createDriving } from "./driving.js";
+import { initParty } from "./party.js";
 
 function compassDir(heading) {
   // heading = 0 là +Z (Nam), PI là -Z (Bắc), +PI/2 là +X (Đông)
@@ -168,6 +170,7 @@ async function boot() {
     }
     if (tablet.isTabOpen()) tablet.toggleTablet();
     settingsEl.classList.remove("open");
+    $("partyModal").classList.remove("open");
     renderGarage();
     garageEl.classList.add("open");
   }
@@ -179,13 +182,30 @@ async function boot() {
     }
     if (tablet.isTabOpen()) tablet.toggleTablet();
     garageEl.classList.remove("open");
+    $("partyModal").classList.remove("open");
     settingsEl.classList.add("open");
+  }
+
+  const partyEl = $("partyModal");
+  let partyRef = null;
+  function toggleParty() {
+    if (partyEl.classList.contains("open")) {
+      partyEl.classList.remove("open");
+      return;
+    }
+    if (tablet.isTabOpen()) tablet.toggleTablet();
+    garageEl.classList.remove("open");
+    settingsEl.classList.remove("open");
+    if (partyRef) partyRef.renderPartyUI();
+    partyEl.classList.add("open");
   }
 
   $("garBtn").onclick = toggleGarage;
   $("gx").onclick = () => garageEl.classList.remove("open");
   $("setBtn").onclick = toggleSettings;
   $("sx").onclick = () => settingsEl.classList.remove("open");
+  $("partyBtn").onclick = toggleParty;
+  $("px").onclick = () => partyEl.classList.remove("open");
 
   $("qualBtn").onclick = () => {
     highQuality = !highQuality;
@@ -199,11 +219,33 @@ async function boot() {
     world,
     keys,
     isModalOpen: () =>
-      tablet.isTabOpen() || garageEl.classList.contains("open") || settingsEl.classList.contains("open"),
+      tablet.isTabOpen() ||
+      garageEl.classList.contains("open") ||
+      settingsEl.classList.contains("open") ||
+      partyEl.classList.contains("open"),
+  });
+
+  partyRef = initParty({
+    world,
+    R0,
+    LANDMARKS,
+    getSelfState: () => ({
+      x: world.me.position.x,
+      z: world.me.position.z,
+      heading: drivingRef.getHeading(),
+      speed: drivingRef.getSpeed(),
+    }),
+    onReceiveFuel: (amt) => {
+      const before = state.fuel;
+      state.fuel = Math.min(100, state.fuel + amt);
+      saveProfile();
+      return state.fuel - before;
+    },
   });
 
   $("re").onclick = drivingRef.reposition;
   $("fuelBtn").onclick = drivingRef.refuel;
+  $("shareFuelBtn").onclick = partyRef.shareFuel;
   $("hornBtn").onclick = drivingRef.honk;
   $("hintBtn").onclick = () => {
     state.hudHint = !state.hudHint;
@@ -216,14 +258,26 @@ async function boot() {
   };
 
   addEventListener("keydown", (e) => {
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+      if (e.key === "Escape") e.target.blur();
+      return;
+    }
     const k = e.key.toLowerCase();
     keys[k] = 1;
     if (e.key === "Escape") toggleSettings();
     if (k === "t") {
       garageEl.classList.remove("open");
       settingsEl.classList.remove("open");
+      partyEl.classList.remove("open");
       tablet.toggleTablet();
+      if (tablet.isTabOpen()) {
+        const snap = partyRef.getMapSnapshot();
+        tablet.updatePartyMap(snap.members, snap.waypoint, world.me.position);
+      }
     }
+    if (k === "p") toggleParty();
+    if (k === "e") partyRef.shareFuel();
     if (k === "g") toggleGarage();
     if (k === "r") drivingRef.reposition();
     if (k === "f") drivingRef.refuel();
@@ -262,6 +316,7 @@ async function boot() {
     last = now;
 
     drivingRef.update(dt);
+    partyRef.update(dt);
     const spd = drivingRef.getSpeed();
     const bike = getActiveBike();
     updateEngineSound(state.soundOn, spd, state.fuel <= 0.05, bike);
@@ -293,6 +348,11 @@ async function boot() {
         tablet.unlockStreetByDrive(near);
       }
 
+      if (tablet.isTabOpen()) {
+        const snap = partyRef.getMapSnapshot();
+        tablet.updatePartyMap(snap.members, snap.waypoint, world.me.position);
+      }
+
       $("compass").textContent = "🧭 " + compassDir(drivingRef.getHeading());
 
       const nearSt = world.stations.some((st) => Math.hypot(st.x - mx, st.z - mz) < 11);
@@ -301,6 +361,7 @@ async function boot() {
       fb.classList.toggle("show", nearSt && state.fuel < 99);
       if (nearSt && state.fuel < 99) fb.textContent = "⛽ Đổ đầy bình (-" + cost.toLocaleString("vi-VN") + "đ) (F)";
 
+      const rLim = ROAD_LIMITS[drivingRef.getRoadClass()] || ROAD_LIMITS[2];
       const streetTxt = state.hudHint ? near : "<i>Đọc biển báo ngã tư</i>";
       $("statTxt").innerHTML =
         "Hạng <b style='color:var(--acc)'>" +
@@ -313,7 +374,9 @@ async function boot() {
         tablet.STS.length +
         "</b> · " +
         bike.name +
-        "<br>Đường: <b>" +
+        "<br>" +
+        rLim.label +
+        ": <b>" +
         streetTxt +
         "</b> · <b>" +
         fps +
@@ -321,9 +384,15 @@ async function boot() {
       saveProfile();
     }
 
+    const kmh = Math.round(Math.abs(spd) * 3.6);
+    const rLim = ROAD_LIMITS[drivingRef.getRoadClass()] || ROAD_LIMITS[2];
+    const maxKmh = rLim.maxKmh || 60;
+    $("limitSign").textContent = maxKmh;
+    $("limitSign").classList.toggle("over", kmh > maxKmh + 3);
+
     $("xp").style.width = (state.xp % 100) + "%";
     $("xpLbl").textContent = (state.xp % 100) + "%";
-    $("spdVal").textContent = Math.round(Math.abs(spd) * 3.6);
+    $("spdVal").textContent = kmh;
     const fp = Math.max(0, Math.min(100, Math.round(state.fuel)));
     const fuelColor = fp > 35 ? "var(--ok)" : fp > 15 ? "var(--acc)" : "var(--bad)";
     $("fuelArc").style.strokeDashoffset = (326.73 * (1 - fp / 100)).toFixed(1);

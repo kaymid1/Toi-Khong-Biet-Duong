@@ -118,11 +118,33 @@ export function initGeoFromCity(D, meta = {}) {
   geo.span = side;
 }
 
+// Quy định tốc độ tối đa tham khảo cho xe mô tô tại VN theo cấp đường (c: 0..7)
+export const ROAD_LIMITS = [
+  { c: 0, label: "Cao tốc", maxKmh: 0, bikeAllowed: false, note: "Cấm xe mô tô, xe gắn máy (Luật TTATGTĐB VN)" },
+  { c: 1, label: "Quốc lộ / Trục chính", maxKmh: 70, bikeAllowed: true },
+  { c: 2, label: "Đường chính đô thị", maxKmh: 60, bikeAllowed: true },
+  { c: 3, label: "Đường khu vực", maxKmh: 50, bikeAllowed: true },
+  { c: 4, label: "Đường nhánh", maxKmh: 50, bikeAllowed: true },
+  { c: 5, label: "Đường nội bộ", maxKmh: 40, bikeAllowed: true },
+  { c: 6, label: "Khu dân cư", maxKmh: 40, bikeAllowed: true },
+  { c: 7, label: "Kiệt / Hẻm nhỏ", maxKmh: 30, bikeAllowed: true },
+];
+
+function makeFriendCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "KBD-";
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
 // ---- Profile chuẩn hóa sẵn sàng cho Cloud Sync (Google Auth / Supabase) ----
 const PROFILE_KEY = "muduong_profile_v1";
 
 export const profile = {
   userId: "guest",
+  displayName: "Phượt thủ",
+  friendCode: makeFriendCode(),
+  friends: [],
   updatedAt: 0,
   xp: 0,
   money: 50000,
@@ -152,6 +174,9 @@ export function loadProfile() {
     const raw = JSON.parse(localStorage.getItem(PROFILE_KEY) || "null");
     if (raw) {
       profile.userId = raw.userId || "guest";
+      profile.displayName = raw.displayName || "Phượt thủ " + (raw.friendCode ? raw.friendCode.slice(-4) : "");
+      profile.friendCode = raw.friendCode || profile.friendCode;
+      profile.friends = Array.isArray(raw.friends) ? raw.friends : [];
       profile.updatedAt = raw.updatedAt || 0;
       profile.xp = raw.xp || 0;
       profile.money = raw.money ?? 50000;

@@ -29,14 +29,16 @@
 
     <div id="stat" class="card">
       <div id="statTxt"></div>
-      <button id="setBtn" class="mini-btn" title="Cài đặt (Esc)">⚙ Cài đặt (Esc)</button>
+      <button id="setBtn" class="mini-btn" title="Cài đặt (Esc)">⚙ Cài đặt & Luật GT (Esc)</button>
     </div>
   </div>
 
   <div id="acts">
     <button id="fuelBtn">⛽ Đổ đầy bình (F)</button>
+    <button id="shareFuelBtn">⛽ Chiết xăng cho đồng đội (E)</button>
     <div class="act-row">
       <button id="tb">📱 Tablet (T)</button>
+      <button id="partyBtn">👥 Phượt / Bạn bè (P)</button>
       <button id="garBtn">🏍️ Garage (G)</button>
       <button id="hornBtn" title="Còi xe (Space)">📢</button>
       <button id="re" title="Về đường gần nhất (R)">📍</button>
@@ -53,6 +55,7 @@
       <div class="sp-unit">km/h</div>
       <div id="fuelPct">⛽ 100%</div>
     </div>
+    <div id="limitSign" title="Tốc độ tối đa tham khảo tại VN">60</div>
   </div>
 
   <div id="pad">
@@ -78,7 +81,7 @@
         <g id="g"></g>
       </svg>
       <div class="ft">
-        Kéo để di chuyển, lăn chuột (+/−) để phóng to. Lái xe qua đường mới để mở khóa (+5 XP). ★ Địa danh · ⛽ Cây xăng. Dừng xe mới mở được tablet!
+        Kéo để di chuyển, lăn chuột (+/−) để phóng to. Vàng: Quốc lộ phượt · Đứt đỏ: Cao tốc (cấm xe máy). ★ Địa danh · ⛽ Cây xăng · 🚩 Điểm tập kết.
       </div>
     </div>
     <div class="tab-home"></div>
@@ -90,11 +93,55 @@
       <button id="gx">Đóng</button>
     </div>
     <div id="garList" class="gar-grid"></div>
+    <div class="set-help" style="margin-top:8px">
+      ⚖️ <b>Quy định VN:</b> Xe mô tô, xe gắn máy (kể cả PKL) chỉ lưu thông trên Quốc lộ &amp; đường nội bộ, không đi vào làn Cao tốc.
+    </div>
+  </div>
+
+  <div id="partyModal">
+    <div class="top">
+      <span>👥 Đoàn Phượt &amp; Bạn bè · Mã của bạn: <b id="myFriendCode" style="color:var(--ok)">KBD-0000</b></span>
+      <button id="px">Đóng (P)</button>
+    </div>
+    <div class="party-grid">
+      <div class="party-col">
+        <div class="set-row" style="margin-bottom:8px">
+          <input id="myNameInp" type="text" maxlength="18" placeholder="Tên phượt thủ" />
+          <button id="saveNameBtn">Lưu tên</button>
+        </div>
+        <div id="partyRoomStatus" class="party-status"></div>
+        <div class="party-btns">
+          <button id="createPartyBtn">➕ Tạo đoàn mới</button>
+          <button id="copyRoomBtn">🔗 Link mời</button>
+          <button id="addBotBtn">🏍️ Thêm bạn AI</button>
+          <button id="leavePartyBtn" class="danger-btn">Rời đoàn</button>
+        </div>
+        <div class="set-row" style="margin-top:8px">
+          <input id="joinRoomInp" type="text" maxlength="8" placeholder="Nhập mã đoàn (vd: A1B2C3)" />
+          <button id="joinPartyBtn">Vào đoàn</button>
+        </div>
+        <div class="set-row" style="margin-top:8px">
+          <select id="partyWpSel" style="width:100%"></select>
+        </div>
+        <div class="sub-lbl">Thành viên trong đoàn (lại gần bấm <b>E</b> để chiết xăng):</div>
+        <div id="partyMembers" class="mate-list"></div>
+      </div>
+
+      <div class="party-col">
+        <div class="sub-lbl" style="margin-top:0">🤝 Danh bạ Bạn bè:</div>
+        <div class="set-row" style="margin-bottom:8px; gap:6px">
+          <input id="friendCodeInp" type="text" maxlength="10" placeholder="Mã (KBD-...)" style="width:105px" />
+          <input id="friendNameInp" type="text" maxlength="16" placeholder="Tên gợi nhớ" />
+          <button id="addFriendBtn">Kết bạn</button>
+        </div>
+        <div id="friendList" class="mate-list"></div>
+      </div>
+    </div>
   </div>
 
   <div id="settings">
     <div class="top">
-      <span>⚙️ Cài đặt & Khu vực</span>
+      <span>⚙️ Cài đặt, Khu vực &amp; Luật GT VN</span>
       <button id="sx">Đóng (Esc)</button>
     </div>
     <div class="set-list">
@@ -103,7 +150,7 @@
         <select id="citySel"></select>
       </div>
       <div class="set-row">
-        <span>Đồ họa (Bóng đổ & Nắng)</span>
+        <span>Đồ họa (Bóng đổ &amp; Nắng)</span>
         <button id="qualBtn">✨ Cao</button>
       </div>
       <div class="set-row">
@@ -111,11 +158,16 @@
         <button id="hintBtn">👁️ TẮT (H)</button>
       </div>
       <div class="set-row">
-        <span>Âm thanh động cơ & còi</span>
+        <span>Âm thanh động cơ &amp; còi</span>
         <button id="sndBtn">🔇 TẮT (M)</button>
       </div>
+      <div class="legal-box">
+        <b>⚖️ Lưu ý Pháp luật Giao thông VN (Luật TTATGTĐB):</b><br>
+        • <b>Đường Cao tốc:</b> Cấm xe mô tô, xe gắn máy (bao gồm xe PKL) đi vào. Game tự chặn lối vào và đặt biển cấm để đảm bảo đúng luật.<br>
+        • <b>Đi phượt đường dài:</b> Sử dụng tuyến <b>Quốc lộ (vạch vàng đậm)</b> và đường ven biển, giữ tốc độ giới hạn (30–70 km/h tùy cấp đường).
+      </div>
       <div class="set-help">
-        <b>Phím tắt:</b> WASD / Mũi tên: Lái · Shift: Tăng tốc · Space: Còi · T: Tablet · G: Garage · F: Đổ xăng · R: Về đường
+        <b>Phím tắt:</b> WASD / Mũi tên: Lái · Shift: Tăng tốc · Space: Còi · T: Tablet · P: Phượt/Bạn bè · E: Chiết xăng · G: Garage · F: Đổ xăng · R: Về đường
       </div>
     </div>
   </div>
@@ -123,6 +175,7 @@
   <div id="toast"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>

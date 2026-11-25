@@ -459,3 +459,134 @@ export function createLandmarkMesh(lm, makeBillboard) {
   gLm.add(sp);
   return gLm;
 }
+
+let highwayBanMat = null;
+export function getHighwayBanMat() {
+  if (highwayBanMat) return highwayBanMat;
+  const cv = document.createElement("canvas");
+  cv.width = 256;
+  cv.height = 128;
+  const ctx = cv.getContext("2d");
+
+  // Green highway header + red prohibition circle
+  ctx.fillStyle = "#126b3a";
+  ctx.fillRect(0, 0, 256, 128);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 248, 120);
+
+  // Red prohibition ring on left
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(54, 64, 38, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#d32f2f";
+  ctx.lineWidth = 9;
+  ctx.beginPath();
+  ctx.arc(54, 64, 34, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Simple motorbike silhouette inside circle
+  ctx.fillStyle = "#1b242c";
+  ctx.beginPath();
+  ctx.arc(41, 74, 7, 0, Math.PI * 2);
+  ctx.arc(67, 74, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(42, 61, 22, 7);
+  ctx.fillRect(57, 52, 5, 11);
+
+  // Red diagonal slash
+  ctx.strokeStyle = "#d32f2f";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(31, 41);
+  ctx.lineTo(77, 87);
+  ctx.stroke();
+
+  // Vietnamese legal text
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 20px 'Be Vietnam Pro',system-ui";
+  ctx.textAlign = "left";
+  ctx.fillText("CAO TỐC", 104, 44);
+  ctx.fillStyle = "#ffd54f";
+  ctx.font = "bold 17px 'Be Vietnam Pro',system-ui";
+  ctx.fillText("CẤM XE MÁY", 104, 74);
+  ctx.fillStyle = "#dce8df";
+  ctx.font = "13px 'Be Vietnam Pro',system-ui";
+  ctx.fillText("Đi Quốc lộ / Đường gom", 104, 98);
+
+  highwayBanMat = new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(cv),
+    side: THREE.FrontSide,
+  });
+  return highwayBanMat;
+}
+
+export function createPartyRiderRig(name, bikeId = "cub", hexColor = 0x3ddc97, isBot = false) {
+  const rig = createPlayerBikeRig();
+  rig.userData.setBikeModel(bikeId, hexColor);
+
+  const cv = document.createElement("canvas");
+  cv.width = 256;
+  cv.height = 64;
+  const ctx = cv.getContext("2d");
+  const spMat = new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv),
+    depthTest: true,
+    transparent: true,
+  });
+  const labelSp = new THREE.Sprite(spMat);
+  labelSp.position.y = 2.45;
+  labelSp.scale.set(3.2, 0.8, 1);
+  rig.add(labelSp);
+
+  function updateLabel(displayName, fuelPct = 100) {
+    ctx.clearRect(0, 0, 256, 64);
+    ctx.fillStyle = fuelPct < 25 ? "rgba(140, 22, 34, 0.88)" : "rgba(14, 24, 34, 0.84)";
+    ctx.fillRect(8, 8, 240, 48);
+    ctx.strokeStyle = fuelPct < 25 ? "#ff5d73" : isBot ? "#ffb020" : "#3ddc97";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(8, 8, 240, 48);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 20px 'Be Vietnam Pro',system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const prefix = isBot ? "🏍️ " : "👥 ";
+    const text = prefix + (displayName || "Đồng đội").slice(0, 14) + " · " + Math.round(fuelPct) + "%";
+    ctx.fillText(text, 128, 33);
+    spMat.map.needsUpdate = true;
+  }
+
+  updateLabel(name, 100);
+  rig.userData.updateLabel = updateLabel;
+  rig.userData.disposeLabel = () => {
+    spMat.map.dispose();
+    spMat.dispose();
+  };
+  return rig;
+}
+
+export function createWaypointBeacon() {
+  const grp = new THREE.Group();
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.1, 1.8, 42, 16, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x3ddc97,
+      transparent: true,
+      opacity: 0.24,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  beam.position.y = 21;
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(2.8, 3.6, 24),
+    new THREE.MeshBasicMaterial({ color: 0x3ddc97, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.14;
+  grp.add(beam, ring);
+  grp.visible = false;
+  return grp;
+}
+

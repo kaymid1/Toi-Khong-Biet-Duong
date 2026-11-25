@@ -148,8 +148,31 @@ button.dim { opacity: .55; }
 }
 #re.pulse { border-color: var(--acc); animation: pl 1s infinite; }
 @keyframes pl { 50% { background: #7a5a10; } }
-#fuelBtn { display: none; border-color: var(--ok); background: #174734; font-weight: 600; }
-#fuelBtn.show { display: block; animation: pl 1.2s infinite; }
+#fuelBtn, #shareFuelBtn { display: none; border-color: var(--ok); background: #174734; font-weight: 600; }
+#fuelBtn.show, #shareFuelBtn.show { display: block; animation: pl 1.2s infinite; }
+#shareFuelBtn { border-color: var(--acc); background: #5a3c0e; }
+
+#limitSign {
+  position: absolute;
+  top: -8px;
+  left: -10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #111827;
+  border: 4px solid #d32f2f;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+#limitSign.over {
+  background: #ffebee;
+  color: #b71c1c;
+  animation: pl .55s infinite;
+}
 
 /* Speedometer + Fuel Ring */
 #speedo {
@@ -374,6 +397,136 @@ path { vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; str
   pointer-events: none;
 }
 .gs-dot { fill: #3ddc97; stroke: #0b1218; stroke-width: 1; pointer-events: none; }
+.hw { stroke: #ff5d73; stroke-width: 2.2; stroke-dasharray: 5 4; opacity: 0.85; }
+.trunk { stroke: #f5b82e; stroke-width: 2.4; opacity: 0.9; }
+.wp-dot { fill: rgba(61, 220, 151, 0.25); stroke: #3ddc97; stroke-width: 1.5; pointer-events: none; }
+.wp-tx {
+  fill: #3ddc97;
+  font-size: calc(var(--fs, 10px) * 1);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #0b1218;
+  stroke-width: calc(var(--fs, 10px) * .32);
+  pointer-events: none;
+}
+.me-dot { fill: #ffffff; stroke: #1e88e5; stroke-width: 1.5; pointer-events: none; }
+.mate-dot { fill: #4fc3f7; stroke: #0b1218; stroke-width: 1.1; pointer-events: none; }
+.mate-tx {
+  fill: #4fc3f7;
+  font-size: calc(var(--fs, 10px) * .9);
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #0b1218;
+  stroke-width: calc(var(--fs, 10px) * .3);
+  pointer-events: none;
+}
+
+#partyModal {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  width: min(740px, 96vw);
+  transform: translate(-50%, 115%);
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1);
+  z-index: 6;
+  padding: 14px 16px;
+  border-radius: 20px 20px 0 0;
+  background: #10161d;
+  border: 2px solid #3a4e63;
+  box-shadow: 0 -10px 35px rgba(0, 0, 0, 0.55);
+  max-height: 82vh;
+  overflow-y: auto;
+}
+#partyModal.open { transform: translate(-50%, 0); }
+#partyModal .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--mut);
+}
+.party-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.party-col {
+  background: #141d27;
+  border: 1px solid #273748;
+  border-radius: 12px;
+  padding: 10px;
+}
+.party-status {
+  font-size: 12px;
+  color: var(--ink);
+  background: #1b2836;
+  border-radius: 8px;
+  padding: 8px 10px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+.party-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.party-btns button {
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.danger-btn {
+  border-color: rgba(255, 93, 115, 0.45);
+  color: #ff8fa0;
+}
+.sub-lbl {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 10px 0 6px;
+}
+.mate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+.mate-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 8px;
+  background: #1a2633;
+  border-radius: 8px;
+}
+.mini-tag {
+  padding: 2px 7px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: #0f1720;
+  border: 1px solid #354b63;
+  border-radius: 7px;
+  padding: 6px 8px;
+}
+.legal-box {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #dce8f5;
+  background: rgba(25, 48, 38, 0.55);
+  border: 1px solid rgba(61, 220, 151, 0.35);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
 
 #toast {
   position: fixed;

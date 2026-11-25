@@ -5,6 +5,8 @@ import {
   createNpcMesh,
   createGasStationMesh,
   createLandmarkMesh,
+  getHighwayBanMat,
+  createWaypointBeacon,
 } from "./models.js";
 
 const CH = 128;
@@ -22,6 +24,7 @@ export const dseg = (x, z, s) => {
 export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
   const cell = new Map();
   const signCell = new Map();
+  const hwSignCell = new Map();
   const crossCell = new Map();
   let NSEG = 0;
 
@@ -49,7 +52,7 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     }
   });
 
-  // Biển tên đường 2 mặt & vạch qua đường tại ngã tư
+  // Biển tên đường 2 mặt, vạch qua đường & biển cấm xe máy đầu cao tốc (c === 0)
   {
     const nodeNames = new Map();
     const nKey = (x, z) => Math.round(x / 3) + "," + Math.round(z / 3);
@@ -65,6 +68,7 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
       }
     });
     const placedByName = new Map();
+    const hwPlaced = [];
     const crossPlaced = new Set();
     R0.forEach((r) => {
       if (r.c > 3 || r.p.length < 4) return;
@@ -75,14 +79,31 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
       pts.forEach(([i0, i1]) => {
         const ix = r.p[i0] * geo.UX;
         const iz = -r.p[i0 + 1] * geo.UZ;
-        const st = nodeNames.get(nKey(ix, iz));
-        if (!st || st.size < 2) return;
         const nx = r.p[i1] * geo.UX;
         const nz = -r.p[i1 + 1] * geo.UZ;
         const dx = nx - ix;
         const dz = nz - iz;
         const l = Math.hypot(dx, dz) || 1;
         if (l < 5) return;
+
+        // Biển CAO TỐC - CẤM XE MÁY tại lối vào đường c === 0
+        if (r.c === 0) {
+          const pull = Math.min(4.0, l * 0.3);
+          const off = WD[0] / 2 + 0.7;
+          const hx = ix + (dx / l) * pull + (-dz / l) * off;
+          const hz = iz + (dz / l) * pull + (dx / l) * off;
+          if (!hwPlaced.some((p) => Math.hypot(p[0] - hx, p[1] - hz) < 40)) {
+            hwPlaced.push([hx, hz]);
+            const hk = Math.floor(hx / CH) + "," + Math.floor(hz / CH);
+            let hL = hwSignCell.get(hk);
+            if (!hL) hwSignCell.set(hk, (hL = []));
+            hL.push({ x: hx, z: hz, ang: Math.atan2(dx, dz) });
+          }
+          return;
+        }
+
+        const st = nodeNames.get(nKey(ix, iz));
+        if (!st || st.size < 2) return;
 
         // Vạch qua đường tại đầu ngã tư đường lớn
         const ck = Math.round(ix / 6) + "," + Math.round(iz / 6) + "," + Math.round((dx / l) * 2);
@@ -209,8 +230,9 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
   const poleG = new THREE.CylinderGeometry(0.07, 0.07, 3.1, 6);
   const poleM = lam(0xd0d7de);
   const boardG = new THREE.PlaneGeometry(2.6, 0.72);
+  const boardHwG = new THREE.PlaneGeometry(2.7, 1.35);
 
-  const sharedGeos = new Set([bG, roofG, trunkG, canopyG, lampPoleG, lampHeadG, poleG, boardG]);
+  const sharedGeos = new Set([bG, roofG, trunkG, canopyG, lampPoleG, lampHeadG, poleG, boardG, boardHwG]);
 
   const housePal = [0xf4e7cc, 0xd4e6d8, 0xf7e4a3, 0xe8bfb0, 0xc9dce8, 0xf2d9c2];
   const roofPal = [0xb3432e, 0x2d6d7a, 0x9e3b28, 0x3b7a57];
@@ -328,15 +350,32 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
         const ySw = 0.015 + (7 - s[6]) * 0.004;
         const yCb = ySw + 0.004;
         const yRd = 0.055 + (7 - s[6]) * 0.01;
-        // Vỉa hè gạch tông ấm nhẹ
-        pushQuad(ax, az, bx, bz, ux * (h + sw), uz * (h + sw), ySw, 0.58, 0.56, 0.52);
-        // Bó vỉa
-        pushQuad(ax, az, bx, bz, ux * (h + curb), uz * (h + curb), yCb, 0.8, 0.81, 0.82);
-        // Mặt đường nhựa
-        const rc = s[6] <= 3 ? 0.23 : 0.18;
-        pushQuad(ax, az, bx, bz, ux * h, uz * h, yRd, rc, rc * 1.03, rc * 1.08);
-        // Vạch tim đường vàng
-        if (s[6] <= 3) pushQuad(s[0], s[1], s[2], s[3], ux * 0.09, uz * 0.09, yRd + 0.004, 0.9, 0.74, 0.28);
+        // Vỉa hè gạch tông ấm nhẹ (cao tốc không dùng vỉa hè đi bộ, dùng dải phân cách xanh)
+        if (s[6] === 0) {
+          pushQuad(ax, az, bx, bz, ux * (h + 1.2), uz * (h + 1.2), ySw, 0.24, 0.48, 0.3);
+          pushQuad(ax, az, bx, bz, ux * (h + 0.32), uz * (h + 0.32), yCb, 0.92, 0.65, 0.2);
+          pushQuad(ax, az, bx, bz, ux * h, uz * h, yRd, 0.16, 0.18, 0.21);
+          pushQuad(s[0], s[1], s[2], s[3], ux * 0.14, uz * 0.14, yRd + 0.004, 0.95, 0.95, 0.95);
+        } else {
+          pushQuad(ax, az, bx, bz, ux * (h + sw), uz * (h + sw), ySw, 0.58, 0.56, 0.52);
+          pushQuad(ax, az, bx, bz, ux * (h + curb), uz * (h + curb), yCb, 0.8, 0.81, 0.82);
+          const rc = s[6] <= 3 ? 0.23 : 0.18;
+          pushQuad(ax, az, bx, bz, ux * h, uz * h, yRd, rc, rc * 1.03, rc * 1.08);
+          if (s[6] <= 3) {
+            pushQuad(
+              s[0],
+              s[1],
+              s[2],
+              s[3],
+              ux * (s[6] === 1 ? 0.13 : 0.09),
+              uz * (s[6] === 1 ? 0.13 : 0.09),
+              yRd + 0.004,
+              0.9,
+              0.74,
+              0.28
+            );
+          }
+        }
       });
 
       // Vạch qua đường trắng tại ngã tư
@@ -385,7 +424,7 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
 
     for (let i = 0; i < own.length; i++) {
       const s = own[i];
-      if (s[6] > 4) continue;
+      if (s[6] === 0 || s[6] > 4) continue;
       const dx = s[2] - s[0];
       const dz = s[3] - s[1];
       const l = Math.hypot(dx, dz);
@@ -563,6 +602,22 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
         grp.add(pMesh, bF, bB);
       });
     }
+    const hsg = hwSignCell.get(cx + "," + cz);
+    if (hsg) {
+      const hwMat = getHighwayBanMat();
+      hsg.forEach((item) => {
+        const pMesh = new THREE.Mesh(poleG, poleM);
+        pMesh.position.set(item.x, 1.65, item.z);
+        pMesh.castShadow = true;
+        const bF = new THREE.Mesh(boardHwG, hwMat);
+        bF.position.set(item.x + Math.sin(item.ang) * 0.04, 3.05, item.z + Math.cos(item.ang) * 0.04);
+        bF.rotation.y = item.ang;
+        const bB = new THREE.Mesh(boardHwG, hwMat);
+        bB.position.set(item.x - Math.sin(item.ang) * 0.04, 3.05, item.z - Math.cos(item.ang) * 0.04);
+        bB.rotation.y = item.ang + Math.PI;
+        grp.add(pMesh, bF, bB);
+      });
+    }
     scene.add(grp);
     return grp;
   }
@@ -594,20 +649,47 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     }
   }
 
-  function onRoad(x, z, margin = 0.25) {
+  function roadInfoAt(x, z, margin = 0.25) {
     const cx = Math.floor(x / CH);
     const cz = Math.floor(z / CH);
+    let legalHit = false;
+    let hwHit = false;
+    let bestC = 6;
+    let bestD = 1e9;
+    let bestStreet = "—";
     for (let a = -1; a <= 1; a++) {
       for (let b = -1; b <= 1; b++) {
         const L = cell.get(cx + a + "," + (cz + b));
         if (!L) continue;
-        for (const s of L) if (dseg(x, z, s) < s[4] / 2 + margin) return true;
+        for (const s of L) {
+          const d = dseg(x, z, s);
+          if (d < s[4] / 2 + margin) {
+            if (s[6] === 0) hwHit = true;
+            else legalHit = true;
+            if (d < bestD) {
+              bestD = d;
+              bestC = s[6];
+              bestStreet = R0[s[5]].n || bestStreet;
+            }
+          }
+        }
       }
     }
-    return false;
+    return {
+      onRoad: legalHit || hwHit,
+      legalOnRoad: legalHit,
+      motorwayOnly: hwHit && !legalHit,
+      c: bestC,
+      street: bestStreet,
+    };
   }
 
-  function nearestRoad(x, z, rad) {
+  function onRoad(x, z, margin = 0.25, allowMotorway = false) {
+    const info = roadInfoAt(x, z, margin);
+    return allowMotorway ? info.onRoad : info.legalOnRoad;
+  }
+
+  function nearestRoad(x, z, rad, allowMotorway = false) {
     const cx = Math.floor(x / CH);
     const cz = Math.floor(z / CH);
     let best = null;
@@ -618,6 +700,7 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
         const L = cell.get(cx + a + "," + (cz + b));
         if (!L) continue;
         for (const s of L) {
+          if (!allowMotorway && s[6] === 0) continue;
           const dx = s[2] - s[0];
           const dz = s[3] - s[1];
           const l2 = dx * dx + dz * dz;
@@ -690,9 +773,12 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     scene.add(gLm);
   });
 
-  // Xe người chơi & NPC
+  // Xe người chơi, cột mốc tập kết & NPC
   const root = createPlayerBikeRig();
   scene.add(root);
+
+  const waypointBeacon = createWaypointBeacon();
+  scene.add(waypointBeacon);
 
   const npcs = [];
   for (let i = 0; i < 10; i++) {
@@ -723,6 +809,15 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     renderer.setPixelRatio(high ? Math.min(devicePixelRatio, 1.5) : 1);
   }
 
+  function setWaypoint(wp) {
+    if (!wp) {
+      waypointBeacon.visible = false;
+      return;
+    }
+    waypointBeacon.visible = true;
+    waypointBeacon.position.set(wp.x, 0, wp.z);
+  }
+
   return {
     CH,
     NSEG,
@@ -736,10 +831,12 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     stations,
     stream,
     onRoad,
+    roadInfoAt,
     nearestRoad,
     scatter,
     updateSunTarget,
     setQuality,
+    setWaypoint,
     setBikeModel: (bikeId, hex) => root.userData.setBikeModel(bikeId, hex),
     setBikeColor: (hex) => root.userData.bdMat.color.setHex(hex),
     setBrakeLight: (braking) => root.userData.setBrakeLight(braking),

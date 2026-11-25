@@ -1,8 +1,8 @@
 import { state, saveProfile, getActiveBike, toast, geo, $ } from "./state.js";
-import { playRefuel, playHorn } from "./audio.js";
+import { playRefuel, playHorn, playError } from "./audio.js";
 
 export function createDriving({ world, keys, isModalOpen }) {
-  const { me, cam, ground, npcs, stations, stream, onRoad, nearestRoad, scatter } = world;
+  const { me, cam, ground, npcs, stations, stream, onRoad, roadInfoAt, nearestRoad, scatter } = world;
 
   let speed = 0;
   let heading = 0;
@@ -10,6 +10,8 @@ export function createDriving({ world, keys, isModalOpen }) {
   let lean = 0;
   let stuck = 0;
   let lowFuelWarned = false;
+  let curRoadClass = 2;
+  let motorwayWarnAt = 0;
 
   const _v1 = new THREE.Vector3();
   const _v2 = new THREE.Vector3();
@@ -136,10 +138,20 @@ export function createDriving({ world, keys, isModalOpen }) {
     if (Math.abs(speed) > 0.02) {
       const nx = ox + fx * speed * dt;
       const nz = oz + fz * speed * dt;
-      if (onRoad(nx, nz)) {
+      const rInfo = roadInfoAt ? roadInfoAt(nx, nz) : { legalOnRoad: onRoad(nx, nz), motorwayOnly: false, c: 2 };
+      if (rInfo.legalOnRoad) {
         me.position.x = nx;
         me.position.z = nz;
+        curRoadClass = rInfo.c;
         stuck = 0;
+      } else if (rInfo.motorwayOnly) {
+        speed = -Math.sign(speed || 1) * Math.min(2.2, Math.abs(speed) * 0.25);
+        const nowMs = performance.now();
+        if (nowMs - motorwayWarnAt > 2600) {
+          motorwayWarnAt = nowMs;
+          playError(state.soundOn);
+          toast("⛔ Đường cao tốc cấm xe máy theo Luật TTATGTĐB VN! Đi Quốc lộ / Đường gom.", "var(--bad)");
+        }
       } else {
         const nr = nearestRoad(nx, nz, 1);
         let slid = false;
@@ -153,6 +165,7 @@ export function createDriving({ world, keys, isModalOpen }) {
             if (onRoad(tx, tz)) {
               me.position.x = tx;
               me.position.z = tz;
+              curRoadClass = nr[2][6];
               speed *= 0.94;
               slid = true;
               break;
@@ -215,5 +228,6 @@ export function createDriving({ world, keys, isModalOpen }) {
       speed = v;
     },
     getHeading: () => heading,
+    getRoadClass: () => curRoadClass,
   };
 }

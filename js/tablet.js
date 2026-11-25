@@ -33,7 +33,7 @@ function hint(cx, cy) {
 export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed }) {
   const byN = new Map();
   R0.forEach((r, i) => {
-    if (r.n && r.c <= 3) {
+    if (r.n && r.c >= 1 && r.c <= 3) {
       let o = byN.get(r.n);
       if (!o) byN.set(r.n, (o = { n: r.n, ids: [], sx: 0, sy: 0, k: 0 }));
       o.ids.push(i);
@@ -67,7 +67,9 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed 
     return e;
   };
   const resEl = mkp(R0.filter((r) => r.c > 5).map(pd).join(""), "rs");
-  mkp(R0.filter((r) => r.c <= 5).map(pd).join(""), "bg");
+  mkp(R0.filter((r) => r.c >= 2 && r.c <= 5).map(pd).join(""), "bg");
+  mkp(R0.filter((r) => r.c === 1).map(pd).join(""), "trunk");
+  mkp(R0.filter((r) => r.c === 0).map(pd).join(""), "hw");
 
   STS.forEach((s) => {
     const d = s.ids.map((i) => pd(R0[i])).join("");
@@ -112,6 +114,56 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed 
     c.setAttribute("class", "gs-dot");
     g.appendChild(c);
   });
+
+  const partyLayer = document.createElementNS(NS, "g");
+  partyLayer.setAttribute("id", "partyMapLayer");
+  g.appendChild(partyLayer);
+
+  function updatePartyMap(members = [], waypoint = null, selfWorldPos = null) {
+    partyLayer.innerHTML = "";
+    if (waypoint) {
+      const wx = mu(waypoint.x / geo.UX);
+      const wy = mv(-waypoint.z / geo.UZ);
+      const ring = document.createElementNS(NS, "circle");
+      ring.setAttribute("cx", wx);
+      ring.setAttribute("cy", wy);
+      ring.setAttribute("r", "4.2");
+      ring.setAttribute("class", "wp-dot");
+      const tx = document.createElementNS(NS, "text");
+      tx.setAttribute("x", +wx + 5);
+      tx.setAttribute("y", +wy + 1);
+      tx.setAttribute("class", "wp-tx");
+      tx.textContent = "🚩 " + waypoint.label;
+      partyLayer.appendChild(ring);
+      partyLayer.appendChild(tx);
+    }
+    if (selfWorldPos) {
+      const sx = mu(selfWorldPos.x / geo.UX);
+      const sy = mv(-selfWorldPos.z / geo.UZ);
+      const meDot = document.createElementNS(NS, "circle");
+      meDot.setAttribute("cx", sx);
+      meDot.setAttribute("cy", sy);
+      meDot.setAttribute("r", "2.6");
+      meDot.setAttribute("class", "me-dot");
+      partyLayer.appendChild(meDot);
+    }
+    members.forEach((m) => {
+      const mx = mu(m.x / geo.UX);
+      const my = mv(-m.z / geo.UZ);
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", mx);
+      c.setAttribute("cy", my);
+      c.setAttribute("r", "2.3");
+      c.setAttribute("class", "mate-dot");
+      const tx = document.createElementNS(NS, "text");
+      tx.setAttribute("x", +mx + 3.2);
+      tx.setAttribute("y", +my + 1);
+      tx.setAttribute("class", "mate-tx");
+      tx.textContent = m.name;
+      partyLayer.appendChild(c);
+      partyLayer.appendChild(tx);
+    });
+  }
 
   let vb = [0, 0, 400, 400];
   function setVB(b) {
@@ -317,5 +369,6 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed 
     isTabOpen: () => tab.classList.contains("open"),
     checkFieldQuest,
     unlockStreetByDrive,
+    updatePartyMap,
   };
 }
