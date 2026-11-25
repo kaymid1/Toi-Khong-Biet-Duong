@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Không Biết Đường – Việt Nam</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="loader">Đang tải bản đồ…</div>
+  <canvas id="c"></canvas>
+
+  <div class="hud">
+    <div id="q" class="card">
+      <div class="q-head">
+        <small id="qType">Nhiệm vụ Tablet:</small>
+        <span id="compass" class="cmp">🧭 Bắc</span>
+        <span id="combo" class="badge"></span>
+      </div>
+      <div id="qText">“Đường <b id="qn">…</b> ở đâu vậy? <span id="qh" style="color:var(--mut)"></span>”</div>
+      <div class="bars">
+        <div>
+          <div class="blbl"><span>XP</span><span id="xpLbl">0%</span></div>
+          <div class="bar"><i id="xp"></i></div>
+        </div>
+        <div>
+          <div class="blbl"><span>⛽ Xăng</span><span id="fuelLbl">100%</span></div>
+          <div class="bar"><i id="fuelBar" style="width:100%"></i></div>
+        </div>
+      </div>
+    </div>
+    <div id="stat" class="card">
+      <div id="statTxt"></div>
+      <div class="city-row">
+        <label for="citySel">Khu vực:</label>
+        <select id="citySel"></select>
+      </div>
+    </div>
+  </div>
+
+  <div id="acts">
+    <button id="fuelBtn">⛽ Đổ đầy bình (F)</button>
+    <button id="hornBtn">📢 Còi xe (Space)</button>
+    <button id="garBtn">🏍️ Garage (G)</button>
+    <button id="hintBtn">👁️ Gợi ý HUD: TẮT (H)</button>
+    <button id="sndBtn">🔇 Âm thanh: TẮT (M)</button>
+    <button id="re">📍 Về đường gần nhất (R)</button>
+    <button id="tb">📱 Mở tablet (T)</button>
+  </div>
+
+  <div id="pad">
+    <span></span><button data-k="w">▲</button><span></span>
+    <button data-k="a">◀</button><button data-k="s">▼</button><button data-k="d">▶</button>
+  </div>
+
+  <div id="tab">
+    <div class="top">
+      <span><span id="tabTitle">Bản đồ</span> · <span id="lvl">Toàn thành phố</span></span>
+      <div class="zbtns">
+        <button id="zi" title="Phóng to">+</button>
+        <button id="zo" title="Thu nhỏ">−</button>
+        <button id="zr" title="Toàn cảnh">⟲</button>
+        <button id="resetBtn" title="Chơi lại khu vực này">↺ Reset</button>
+        <button id="x">Đóng</button>
+      </div>
+    </div>
+    <svg id="m" viewBox="0 0 400 400">
+      <rect x="-200" y="-200" width="800" height="800" fill="#101c17"/>
+      <g id="g"></g>
+    </svg>
+    <div class="ft">
+      Kéo để di chuyển, lăn chuột (+/−) để phóng to. Tự lái xe qua đường mới cũng mở khóa trên bản đồ (+5 XP). ★ Địa danh · ⛽ Cây xăng. Dừng xe mới mở được tablet!
+    </div>
+  </div>
+
+  <div id="garage">
+    <div class="top">
+      <span>🏍️ Garage Xe · Tiền hiện có: <b id="garMoney" style="color:var(--acc)">0đ</b></span>
+      <button id="gx">Đóng</button>
+    </div>
+    <div id="garList" class="gar-grid"></div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
