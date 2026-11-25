@@ -30,7 +30,7 @@ function hint(cx, cy) {
   return "phía " + d;
 }
 
-export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed, getMode }) {
+export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed, getMode, rewards }) {
   const byN = new Map();
   R0.forEach((r, i) => {
     if (r.n && r.c >= 1 && r.c <= 3) {
@@ -230,14 +230,9 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
     if (state.combo >= 2) el.textContent = "🔥 Chuỗi x" + state.combo;
   }
 
-  function nextQuestion() {
-    questCount++;
-    const unlearned = Q.filter((s) => !state.learned.has(s.n));
-    const pool = unlearned.length ? unlearned : Q;
-    cur = Q.indexOf(pool[Math.floor(Math.random() * Math.min(pool.length, 8))]);
-    if (cur < 0) cur = 0;
-
-    if (questCount % 3 === 0) {
+  function setQuestionByIndex(idx, forceTablet = false) {
+    cur = idx >= 0 && idx < Q.length ? idx : 0;
+    if (!forceTablet && questCount % 3 === 0) {
       fieldTarget = Q[cur];
       $("qType").textContent = "Nhiệm vụ Thực địa (lái xe tới nơi):";
       $("qText").innerHTML =
@@ -257,6 +252,25 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
         ')</span>”';
     }
     renderCombo();
+  }
+
+  function nextQuestion() {
+    questCount++;
+    if (rewards && rewards.pickNextStreetIndex) {
+      setQuestionByIndex(rewards.pickNextStreetIndex(Q));
+      return;
+    }
+    const unlearned = Q.filter((s) => !state.learned.has(s.n));
+    const pool = unlearned.length ? unlearned : Q;
+    const idx = Q.indexOf(pool[Math.floor(Math.random() * Math.min(pool.length, 8))]);
+    setQuestionByIndex(idx);
+  }
+
+  function focusStreet(name) {
+    const idx = Q.findIndex((s) => s.n === name);
+    if (idx < 0) return;
+    setQuestionByIndex(idx, true);
+    toast("Đang ôn đường: " + name + " — hãy mở Tablet (T) để chọn trên bản đồ", "var(--acc)");
   }
 
   function completeStreet(s, isField) {
@@ -281,6 +295,7 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
         "đ",
       "var(--ok)"
     );
+    if (rewards) rewards.onQuestComplete(s.n, isField, firstTime);
   }
 
   function unlockStreetByDrive(streetName) {
@@ -295,6 +310,7 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
     saveProfile();
     playDiscover(state.soundOn);
     toast("Khám phá đường mới: " + streetName + " (+5 XP · +2.000đ)", "var(--ok)");
+    if (rewards) rewards.onStreetDiscovered(streetName);
   }
 
   function pick(s) {
@@ -309,6 +325,7 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
       s.el.classList.add("bad");
       playError(state.soundOn);
       toast("Đó là đường " + s.n + " – thử lại!", "var(--bad)");
+      if (rewards && Q[cur]) rewards.onWrongPick(Q[cur].n);
       setTimeout(() => s.el.classList.remove("bad"), 1400);
       return;
     }
@@ -371,5 +388,6 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
     checkFieldQuest,
     unlockStreetByDrive,
     updatePartyMap,
+    focusStreet,
   };
 }

@@ -55,6 +55,7 @@
       <button id="dismountBtn">🚶 Xuống xe (V)</button>
       <button id="partyBtn">👥 Phượt / Bạn bè (P)</button>
       <button id="garBtn">🏠 Kho xe (G)</button>
+      <button id="rewBtn">🏆 Thưởng (B)</button>
       <button id="hornBtn" title="Còi xe (Space)">📢</button>
       <button id="re" title="Về đường gần nhất (R)">📍</button>
     </div>
@@ -187,11 +188,23 @@
         • <b>Đi phượt đường dài:</b> Sử dụng tuyến <b>Quốc lộ (vạch vàng đậm)</b> và đường ven biển, giữ tốc độ giới hạn (30–70 km/h tùy cấp đường).
       </div>
       <div class="set-help">
-        <b>Phím tắt:</b> WASD / Mũi tên: Lái · Shift: Tăng tốc · Space: Còi · T: Tablet · P: Phượt/Bạn bè · E: Chiết xăng · G: Garage · F: Đổ xăng · R: Về đường
+        <b>Phím tắt:</b> WASD / Mũi tên: Lái · Shift: Tăng tốc · Space: Còi · T: Tablet · B: Thưởng &amp; Sổ tay · P: Phượt/Bạn bè · E: Chiết xăng · G: Garage · F: Đổ xăng · R: Về đường
       </div>
     </div>
   </div>
 
+  <div id="rewardsModal">
+    <div class="top">
+      <div class="rew-tabs">
+        <button id="rewTabDaily" class="on">🏆 Nhiệm vụ &amp; Thành tựu</button>
+        <button id="rewTabNb">📖 Sổ tay đường phố</button>
+      </div>
+      <button id="rx">Đóng (B)</button>
+    </div>
+    <div id="rewBody" class="rew-body"></div>
+  </div>
+
+  <div id="achBanner" aria-live="polite"></div>
   <div id="toast"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

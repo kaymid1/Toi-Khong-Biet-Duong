@@ -1,7 +1,7 @@
 import { state, saveProfile, getActiveBike, toast, geo, $ } from "./state.js";
 import { playRefuel, playHorn, playError } from "./audio.js";
 
-export function createDriving({ world, keys, isModalOpen }) {
+export function createDriving({ world, keys, isModalOpen, rewards }) {
   const { me, parkedVehicle, walker, cam, ground, npcs, stations, stream, onRoad, roadInfoAt, nearestRoad, scatter } =
     world;
 
@@ -171,6 +171,7 @@ export function createDriving({ world, keys, isModalOpen }) {
     saveProfile();
     playRefuel(state.soundOn);
     toast("Đã đổ đầy xăng (-" + cost.toLocaleString("vi-VN") + "đ)", "var(--ok)");
+    if (rewards) rewards.onRefuel();
   }
 
   function honk() {
@@ -316,6 +317,10 @@ export function createDriving({ world, keys, isModalOpen }) {
           } else stuck = 0;
         }
       } else stuck = 0;
+      if (rewards) {
+        const d = Math.hypot(me.position.x - ox, me.position.z - oz);
+        if (d > 0.001) rewards.onDriveDistance(d);
+      }
     }
 
     const fx = Math.sin(heading);

@@ -17,6 +17,7 @@ import { initWorld3D, dseg } from "./world3d.js";
 import { initTablet } from "./tablet.js";
 import { createDriving } from "./driving.js";
 import { initPerf } from "./perf.js";
+import { initRewards } from "./rewards.js";
 import { initParty } from "./party.js";
 
 function compassDir(heading) {
@@ -89,6 +90,13 @@ async function boot() {
   world.setBikeModel(initBike.id, initBike.color);
 
   let drivingRef = null;
+  let tabletRef = null;
+  const rewards = initRewards({
+    getStreets: () => (tabletRef ? tabletRef.STS : []),
+    onFocusStreet: (name) => {
+      if (tabletRef) tabletRef.focusStreet(name);
+    },
+  });
   const tablet = initTablet({
     R0,
     SEEDS,
@@ -99,7 +107,9 @@ async function boot() {
       if (drivingRef) drivingRef.setSpeed(v);
     },
     getMode: () => (drivingRef ? drivingRef.getMode() : "drive"),
+    rewards,
   });
+  tabletRef = tablet;
 
   // ---- Garage & Settings ----
   const garageEl = $("garage");
@@ -208,12 +218,21 @@ async function boot() {
     partyEl.classList.add("open");
   }
 
+  function toggleRewards() {
+    if (tablet.isTabOpen()) tablet.toggleTablet();
+    garageEl.classList.remove("open");
+    settingsEl.classList.remove("open");
+    partyEl.classList.remove("open");
+    rewards.toggle();
+  }
+
   $("garBtn").onclick = toggleGarage;
   $("gx").onclick = () => garageEl.classList.remove("open");
   $("setBtn").onclick = toggleSettings;
   $("sx").onclick = () => settingsEl.classList.remove("open");
   $("partyBtn").onclick = toggleParty;
   $("px").onclick = () => partyEl.classList.remove("open");
+  $("rewBtn").onclick = toggleRewards;
 
   $("qualBtn").onclick = () => {
     highQuality = !highQuality;
@@ -226,11 +245,13 @@ async function boot() {
   drivingRef = createDriving({
     world,
     keys,
+    rewards,
     isModalOpen: () =>
       tablet.isTabOpen() ||
       garageEl.classList.contains("open") ||
       settingsEl.classList.contains("open") ||
-      partyEl.classList.contains("open"),
+      partyEl.classList.contains("open") ||
+      rewards.isOpen(),
   });
 
   partyRef = initParty({
@@ -329,12 +350,14 @@ async function boot() {
       garageEl.classList.remove("open");
       settingsEl.classList.remove("open");
       partyEl.classList.remove("open");
+      if (rewards.isOpen()) rewards.toggle();
       tablet.toggleTablet();
       if (tablet.isTabOpen()) {
         const snap = partyRef.getMapSnapshot();
         tablet.updatePartyMap(snap.members, snap.waypoint, world.me.position);
       }
     }
+    if (k === "b") toggleRewards();
     if (k === "p") toggleParty();
     if (k === "v") drivingRef.toggleDismount();
     if (k === "c") partyRef.rideWithNearestMate();
@@ -448,7 +471,11 @@ async function boot() {
         RANK[Math.min(Math.floor(state.xp / 100), 3)] +
         "</b> · <b>" +
         state.money.toLocaleString("vi-VN") +
-        "đ</b><br>Thuộc đường: <b>" +
+        "đ</b> · 🔥" +
+        rewards.getStreak() +
+        "d · ✅" +
+        rewards.getDailyDoneCount() +
+        "/3<br>Thuộc đường: <b>" +
         state.learned.size +
         "/" +
         tablet.STS.length +

@@ -198,6 +198,10 @@ export const profile = {
   money: 50000,
   ownedBikes: ["cub"],
   activeBike: "cub",
+  streak: { count: 0, lastDay: "" },
+  stats: { questsDone: 0, fieldDone: 0, maxCombo: 0, totalKm: 0, refuels: 0, wrongPicks: 0 },
+  achievements: [],
+  daily: { day: "", tasks: [] },
   cities: {},
 };
 
@@ -212,6 +216,7 @@ export const state = {
   soundOn: false,
   ttsOn: true,
   learned: new Set(),
+  mastery: {}, // { [streetName]: { ok, wrong, lastAt, nextAt } }
 };
 
 export function getActiveBike() {
@@ -231,6 +236,17 @@ export function loadProfile() {
       profile.money = raw.money ?? 50000;
       profile.ownedBikes = Array.isArray(raw.ownedBikes) && raw.ownedBikes.length ? raw.ownedBikes : ["cub"];
       profile.activeBike = raw.activeBike || "cub";
+      profile.streak = raw.streak && typeof raw.streak === "object" ? { count: raw.streak.count || 0, lastDay: raw.streak.lastDay || "" } : { count: 0, lastDay: "" };
+      profile.stats = {
+        questsDone: raw.stats?.questsDone || 0,
+        fieldDone: raw.stats?.fieldDone || 0,
+        maxCombo: raw.stats?.maxCombo || 0,
+        totalKm: raw.stats?.totalKm || 0,
+        refuels: raw.stats?.refuels || 0,
+        wrongPicks: raw.stats?.wrongPicks || 0,
+      };
+      profile.achievements = Array.isArray(raw.achievements) ? raw.achievements : [];
+      profile.daily = raw.daily && typeof raw.daily === "object" ? raw.daily : { day: "", tasks: [] };
       profile.cities = raw.cities || {};
     }
   } catch (e) {}
@@ -241,13 +257,14 @@ export function loadProfile() {
     if (legacy && !profile.cities[geo.cityId]) {
       profile.xp = Math.max(profile.xp, legacy.xp || 0);
       profile.money = Math.max(profile.money, legacy.money ?? 50000);
-      profile.cities[geo.cityId] = { fuel: legacy.fuel ?? 100, learned: legacy.learned || [] };
+      profile.cities[geo.cityId] = { fuel: legacy.fuel ?? 100, learned: legacy.learned || [], mastery: {} };
     }
   } catch (e) {}
 
-  const cData = profile.cities[geo.cityId] || { fuel: 100, learned: [] };
+  const cData = profile.cities[geo.cityId] || { fuel: 100, learned: [], mastery: {} };
   state.fuel = cData.fuel ?? 100;
   state.learned = new Set(cData.learned || []);
+  state.mastery = cData.mastery && typeof cData.mastery === "object" ? cData.mastery : {};
   state.combo = 0;
 }
 
@@ -256,6 +273,7 @@ export function saveProfile() {
   profile.cities[geo.cityId] = {
     fuel: +state.fuel.toFixed(1),
     learned: [...state.learned],
+    mastery: state.mastery,
   };
   try {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
@@ -266,6 +284,7 @@ export function resetCityProgress() {
   state.fuel = 100;
   state.combo = 0;
   state.learned.clear();
+  state.mastery = {};
   saveProfile();
 }
 
