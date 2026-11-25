@@ -1,6 +1,6 @@
 import { profile, state, BIKES, saveProfile, getActiveBike, toast, geo, $ } from "./state.js";
 import { createPartyRiderRig } from "./models.js";
-import { playRefuel, playSuccess, playDiscover } from "./audio.js";
+import { playRefuel, playSuccess, playDiscover, playChatPop, speakChat } from "./audio.js";
 
 const BC_NAME = "kbd_party_v1";
 const PEER_PREFIX = "kbd-phut-";
@@ -173,6 +173,17 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
       const gained = onReceiveFuel(pkt.amount || 20);
       playRefuel(state.soundOn);
       toast("⛽ " + (pkt.fromName || "Đồng đội") + " vừa chiết +" + Math.round(gained) + "% xăng cho bạn!", "var(--ok)");
+    } else if (pkt.type === "chat") {
+      const r = remotes.get(pkt.from);
+      if (r && r.mesh && r.mesh.userData.say) {
+        r.mesh.userData.say(pkt.text);
+      }
+      playChatPop(state.soundOn);
+      speakChat(pkt.text, state.ttsOn, {
+        pitch: pkt.pitch || 1.12,
+        rate: pkt.rate || 1.06,
+        voiceIndex: pkt.voiceIndex ?? 1,
+      });
     } else if (pkt.type === "leave") {
       const r = remotes.get(pkt.from);
       if (r) toast(r.name + " đã rời đoàn phượt", "var(--mut)");
@@ -587,6 +598,9 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
           r.fuel = Math.max(5, r.fuel - spd * dt * 0.09);
           if (r.fuel < 35 && !r.lowWarned) {
             r.lowWarned = true;
+            const helpMsg = "Sắp hết xăng rồi, ai chiết giúp mình với!";
+            if (r.mesh && r.mesh.userData.say) r.mesh.userData.say(helpMsg);
+            speakChat(helpMsg, state.ttsOn, { pitch: r.name.includes("Lan") ? 1.2 : 0.96, voiceIndex: idx + 1 });
             toast("⛽ " + r.name + ": 'Sắp hết xăng rồi! Lại gần bấm (E) chiết giúp với!'", "var(--acc)");
           }
         } else {
@@ -612,8 +626,13 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
         r.mesh.rotation.y = r.heading;
         if (r.mesh.userData.w1) r.mesh.userData.w1.rotation.x += (r.speed || 0) * dt * 2.2;
         if (r.mesh.userData.w2) r.mesh.userData.w2.rotation.x += (r.speed || 0) * dt * 2.2;
+        if (r.mesh.userData.updateChat) r.mesh.userData.updateChat(now);
       }
       idx++;
+    }
+
+    if (world.me && world.me.userData.updateChat) {
+      world.me.userData.updateChat(now);
     }
 
     // Broadcast own state at ~12 Hz when in a room
@@ -689,6 +708,61 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
     }
   }
 
+  function pickAiReply(text) {
+    const low = text.toLowerCase();
+    if (low.includes("xăng") || low.includes("đổ")) return "Gần đây có cây xăng đó, ghé đổ luôn đi!";
+    if (low.includes("đợi") || low.includes("chờ") || low.includes("chậm")) return "Ok bạn ơi, mình giảm ga chờ nè!";
+    if (low.includes("chào") || low.includes("hello") || low.includes("hi")) return "Chào bạn! Hôm nay đi phượt tuyến nào đây?";
+    if (low.includes("tới") || low.includes("đâu") || low.includes("đường")) return "Nhớ mở tablet xem lại đường cho chắc nhé!";
+    if (low.includes("cảm ơn") || low.includes("thanks")) return "Không có chi, anh em cùng đoàn mà!";
+    const pool = [
+      "Đoàn mình chạy đúng luật, giữ tốc độ nhé!",
+      "Đường này đẹp ghê, đi phượt quá đã!",
+      "Ok luôn bạn ơi, lên ga thôi!",
+      "Nhớ đừng quẹo lên cao tốc kẻo bị phạt đó nha!",
+    ];
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function sendChat(rawText) {
+    const clean = String(rawText || "").trim().slice(0, 72);
+    if (!clean) return;
+    if (world.me && world.me.userData.say) {
+      world.me.userData.say(clean);
+    }
+    playChatPop(state.soundOn);
+    speakChat(clean, state.ttsOn, { pitch: 1.02, rate: 1.06, voiceIndex: 0 });
+    if (roomCode) {
+      sendPacket({
+        type: "chat",
+        from: myPeerId,
+        fromName: profile.displayName,
+        text: clean,
+        pitch: 1.12,
+        voiceIndex: 1,
+        city: geo.cityId,
+      });
+    }
+    // AI teammate banter if any bot is in party
+    const bots = [...remotes.values()].filter((r) => r.isBot);
+    if (bots.length) {
+      const responder = bots[Math.floor(Math.random() * bots.length)];
+      const reply = pickAiReply(clean);
+      setTimeout(() => {
+        if (!remotes.has(responder.id)) return;
+        if (responder.mesh && responder.mesh.userData.say) {
+          responder.mesh.userData.say(reply);
+        }
+        playChatPop(state.soundOn);
+        speakChat(reply, state.ttsOn, {
+          pitch: responder.name.includes("Lan") ? 1.24 : 0.94,
+          rate: 1.05,
+          voiceIndex: 1,
+        });
+      }, 1150);
+    }
+  }
+
   function getMapSnapshot() {
     const members = [];
     for (const r of remotes.values()) members.push({ name: r.name, x: r.x, z: r.z });
@@ -700,6 +774,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
   return {
     update,
     shareFuel,
+    sendChat,
     renderPartyUI,
     getMapSnapshot,
     isOpen: () => modal && modal.classList.contains("open"),

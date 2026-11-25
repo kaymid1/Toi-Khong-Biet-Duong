@@ -91,3 +91,53 @@ export function playRefuel(enabled) {
   tone(440, 0.1, "sine", 0.1, 0.09);
   tone(660, 0.18, "sine", 0.12, 0.18);
 }
+
+export function playChatPop(enabled) {
+  if (!enabled) return;
+  tone(540, 0.06, "sine", 0.07, 0);
+  tone(760, 0.08, "sine", 0.06, 0.045);
+}
+
+let cachedViVoices = [];
+function refreshViVoices() {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const list = window.speechSynthesis.getVoices() || [];
+  cachedViVoices = list.filter((v) => v.lang && v.lang.toLowerCase().startsWith("vi"));
+}
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  refreshViVoices();
+  if (typeof window.speechSynthesis.addEventListener === "function") {
+    window.speechSynthesis.addEventListener("voiceschanged", refreshViVoices);
+  }
+}
+
+export function stopSpeech() {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+}
+
+export function speakChat(text, enabled = true, opts = {}) {
+  if (!enabled || !text) return;
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    const ss = window.speechSynthesis;
+    if (!cachedViVoices.length) refreshViVoices();
+    // Tránh dồn hàng đợi quá dài nếu nhiều người chat liên tục
+    if (ss.pending || ss.speaking) ss.cancel();
+
+    const utter = new SpeechSynthesisUtterance(String(text).slice(0, 120));
+    utter.lang = "vi-VN";
+    if (cachedViVoices.length) {
+      const viIdx = Math.abs(opts.voiceIndex || 0) % cachedViVoices.length;
+      utter.voice = cachedViVoices[viIdx];
+    }
+    utter.pitch = Math.max(0.75, Math.min(1.45, opts.pitch ?? 1.05));
+    utter.rate = Math.max(0.85, Math.min(1.3, opts.rate ?? 1.06));
+    utter.volume = Math.max(0, Math.min(1, opts.volume ?? 0.92));
+    ss.speak(utter);
+  } catch (e) {}
+}
+

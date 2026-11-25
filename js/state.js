@@ -162,6 +162,7 @@ export const state = {
   combo: 0,
   hudHint: false,
   soundOn: false,
+  ttsOn: true,
   learned: new Set(),
 };
 

@@ -12,7 +12,7 @@ import {
   toast,
   $,
 } from "./state.js";
-import { setSoundEnabled, updateEngineSound, playSuccess } from "./audio.js";
+import { setSoundEnabled, updateEngineSound, playSuccess, stopSpeech } from "./audio.js";
 import { initWorld3D, dseg } from "./world3d.js";
 import { initTablet } from "./tablet.js";
 import { createDriving } from "./driving.js";
@@ -256,11 +256,57 @@ async function boot() {
     setSoundEnabled(state.soundOn);
     $("sndBtn").textContent = (state.soundOn ? "🔊 BẬT" : "🔇 TẮT") + " (M)";
   };
+  $("ttsBtn").onclick = () => {
+    state.ttsOn = !state.ttsOn;
+    if (!state.ttsOn) stopSpeech();
+    $("ttsBtn").textContent = state.ttsOn ? "🗣️ BẬT" : "🔇 TẮT";
+    toast("Giọng đọc chat: " + (state.ttsOn ? "BẬT" : "TẮT"), "var(--ok)");
+  };
+
+  const chatBar = $("chatBar");
+  const chatInp = $("chatInp");
+  function toggleChat(forceOpen = null) {
+    const open = forceOpen === null ? !chatBar.classList.contains("open") : !!forceOpen;
+    chatBar.classList.toggle("open", open);
+    if (open) {
+      setTimeout(() => chatInp.focus(), 20);
+    } else {
+      chatInp.blur();
+    }
+  }
+  function submitChat() {
+    const txt = chatInp.value.trim();
+    if (txt) partyRef.sendChat(txt);
+    chatInp.value = "";
+    toggleChat(false);
+  }
+  $("chatBtn").onclick = () => toggleChat();
+  $("chatSendBtn").onclick = submitChat;
+  chatInp.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitChat();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      toggleChat(false);
+    }
+  });
+  document.querySelectorAll(".qchat").forEach((b) => {
+    b.onclick = () => {
+      partyRef.sendChat(b.dataset.msg || "");
+      toggleChat(false);
+    };
+  });
 
   addEventListener("keydown", (e) => {
     const tag = (e.target && e.target.tagName) || "";
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
       if (e.key === "Escape") e.target.blur();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      toggleChat(true);
       return;
     }
     const k = e.key.toLowerCase();

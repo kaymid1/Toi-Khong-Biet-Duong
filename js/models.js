@@ -320,6 +320,8 @@ export function createPlayerBikeRig() {
     tailMat.emissiveIntensity = braking ? 2.2 : 0.8;
   }
 
+  const chat = createChatBubbleHelper(root, 2.65);
+
   root.userData = {
     body,
     frontFork,
@@ -328,8 +330,136 @@ export function createPlayerBikeRig() {
     bdMat,
     setBikeModel,
     setBrakeLight,
+    chat,
+    say: chat.say,
+    updateChat: chat.update,
   };
   return root;
+}
+
+function createChatBubbleHelper(rig, baseY = 2.65) {
+  const cv = document.createElement("canvas");
+  cv.width = 420;
+  cv.height = 160;
+  const ctx = cv.getContext("2d");
+  const tex = new THREE.CanvasTexture(cv);
+  const spMat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: true,
+  });
+  const sp = new THREE.Sprite(spMat);
+  sp.position.y = baseY;
+  sp.scale.set(4.1, 1.56, 1);
+  sp.visible = false;
+  rig.add(sp);
+
+  let startAt = 0;
+  let expiresAt = 0;
+
+  function drawRoundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + w / 2 + 12, y + h);
+    ctx.lineTo(x + w / 2, y + h + 16);
+    ctx.lineTo(x + w / 2 - 12, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function say(rawText, durationMs = 5200) {
+    const clean = String(rawText || "").trim().slice(0, 72);
+    if (!clean) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.font = "700 24px 'Be Vietnam Pro',system-ui,sans-serif";
+
+    const maxTextW = 340;
+    const words = clean.split(/\s+/);
+    const lines = [];
+    let curLine = "";
+    for (const w of words) {
+      const test = curLine ? curLine + " " + w : w;
+      if (ctx.measureText(test).width > maxTextW && curLine) {
+        lines.push(curLine);
+        curLine = w;
+        if (lines.length >= 2) break;
+      } else {
+        curLine = test;
+      }
+    }
+    if (curLine && lines.length < 2) lines.push(curLine);
+    if (lines.length === 2 && words.join(" ").length > lines.join(" ").length) {
+      lines[1] = lines[1].slice(0, Math.max(1, lines[1].length - 1)) + "…";
+    }
+
+    const lineH = 30;
+    const textW = Math.max(...lines.map((l) => ctx.measureText(l).width), 64);
+    const bw = Math.min(396, textW + 46);
+    const bh = lines.length * lineH + 28;
+    const bx = (cv.width - bw) / 2;
+    const by = cv.height - bh - 24;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(8, 14, 22, 0.35)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    drawRoundedRect(bx, by, bw, bh, 22);
+    ctx.fillStyle = "#fffef9";
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundedRect(bx, by, bw, bh, 22);
+    ctx.strokeStyle = "#2b3d50";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    ctx.fillStyle = "#141d26";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const startY = by + bh / 2 - ((lines.length - 1) * lineH) / 2;
+    lines.forEach((ln, i) => {
+      ctx.fillText(ln, cv.width / 2, startY + i * lineH);
+    });
+
+    tex.needsUpdate = true;
+    const now = performance.now();
+    startAt = now;
+    expiresAt = now + durationMs;
+    sp.visible = true;
+  }
+
+  function update(now = performance.now()) {
+    if (!sp.visible) return;
+    if (now >= expiresAt) {
+      sp.visible = false;
+      return;
+    }
+    const elapsed = now - startAt;
+    const pop = elapsed < 160 ? 0.65 + (elapsed / 160) * 0.42 : elapsed < 260 ? 1.07 - ((elapsed - 160) / 100) * 0.07 : 1;
+    const rem = expiresAt - now;
+    spMat.opacity = rem < 650 ? Math.max(0, rem / 650) : 1;
+    sp.scale.set(4.1 * pop, 1.56 * pop, 1);
+  }
+
+  return {
+    sprite: sp,
+    setHeight: (y) => {
+      sp.position.y = y;
+    },
+    say,
+    update,
+    dispose: () => {
+      tex.dispose();
+      spMat.dispose();
+    },
+  };
 }
 
 export function createNpcMesh(index) {
@@ -558,10 +688,12 @@ export function createPartyRiderRig(name, bikeId = "cub", hexColor = 0x3ddc97, i
   }
 
   updateLabel(name, 100);
+  if (rig.userData.chat) rig.userData.chat.setHeight(3.45);
   rig.userData.updateLabel = updateLabel;
   rig.userData.disposeLabel = () => {
     spMat.map.dispose();
     spMat.dispose();
+    if (rig.userData.chat) rig.userData.chat.dispose();
   };
   return rig;
 }

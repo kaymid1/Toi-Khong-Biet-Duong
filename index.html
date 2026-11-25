@@ -36,8 +36,21 @@
   <div id="acts">
     <button id="fuelBtn">⛽ Đổ đầy bình (F)</button>
     <button id="shareFuelBtn">⛽ Chiết xăng cho đồng đội (E)</button>
+    <div id="chatBar">
+      <div class="qchat-row">
+        <button class="qchat" data-msg="Chào cả đoàn nha!">👋 Chào</button>
+        <button class="qchat" data-msg="Đợi mình với!">⏳ Đợi với</button>
+        <button class="qchat" data-msg="Sắp hết xăng rồi!">⛽ Hết xăng</button>
+        <button class="qchat" data-msg="Lên ga đi phượt thôi!">🏍️ Lên ga</button>
+      </div>
+      <div class="chat-inp-row">
+        <input id="chatInp" type="text" maxlength="72" placeholder="Nhập chat (Enter gửi, Esc đóng)…" />
+        <button id="chatSendBtn">Gửi</button>
+      </div>
+    </div>
     <div class="act-row">
       <button id="tb">📱 Tablet (T)</button>
+      <button id="chatBtn">💬 Chat (Enter)</button>
       <button id="partyBtn">👥 Phượt / Bạn bè (P)</button>
       <button id="garBtn">🏍️ Garage (G)</button>
       <button id="hornBtn" title="Còi xe (Space)">📢</button>
@@ -160,6 +173,10 @@
       <div class="set-row">
         <span>Âm thanh động cơ &amp; còi</span>
         <button id="sndBtn">🔇 TẮT (M)</button>
+      </div>
+      <div class="set-row">
+        <span>Giọng đọc chat (Tiếng Việt TTS)</span>
+        <button id="ttsBtn">🗣️ BẬT</button>
       </div>
       <div class="legal-box">
         <b>⚖️ Lưu ý Pháp luật Giao thông VN (Luật TTATGTĐB):</b><br>

@@ -152,6 +152,41 @@ button.dim { opacity: .55; }
 #fuelBtn.show, #shareFuelBtn.show { display: block; animation: pl 1.2s infinite; }
 #shareFuelBtn { border-color: var(--acc); background: #5a3c0e; }
 
+#chatBar {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  width: min(360px, 88vw);
+  background: rgba(16, 24, 34, 0.88);
+  border: 1px solid rgba(130, 160, 190, 0.28);
+  border-radius: 14px;
+  padding: 8px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
+}
+#chatBar.open { display: flex; }
+.qchat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.qchat {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 99px;
+  background: rgba(34, 50, 68, 0.9);
+}
+.chat-inp-row {
+  display: flex;
+  gap: 6px;
+}
+#chatSendBtn {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #1b5e3f;
+  border-color: var(--ok);
+}
+
 #limitSign {
   position: absolute;
   top: -8px;
