@@ -16,6 +16,7 @@ import { setSoundEnabled, updateEngineSound, playSuccess, stopSpeech } from "./a
 import { initWorld3D, dseg } from "./world3d.js";
 import { initTablet } from "./tablet.js";
 import { createDriving } from "./driving.js";
+import { initPerf } from "./perf.js";
 import { initParty } from "./party.js";
 
 function compassDir(heading) {
@@ -365,6 +366,9 @@ async function boot() {
 
   $("loader").classList.add("hide");
 
+  const perf = initPerf({ world, R0, autoBench: new URLSearchParams(location.search).get("bench") === "1" });
+  window.__perf = perf;
+  window.__world = world;
   let last = performance.now();
   let fc = 0;
   let ft = 0;
@@ -382,7 +386,9 @@ async function boot() {
     const bike = getActiveBike();
     updateEngineSound(state.soundOn, spd, curMode !== "drive" || state.fuel <= 0.05, bike);
 
+    const _r0 = performance.now();
     world.renderer.render(world.scene, world.cam);
+    perf.frame(now, performance.now() - _r0);
 
     fc++;
     ft += dt;

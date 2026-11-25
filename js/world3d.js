@@ -623,30 +623,106 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     return grp;
   }
 
+  // ---- Streaming: hàng đợi chunk theo khoảng cách, dựng theo ngân sách ms/khung ----
+  const streamCfg = { budgetMs: 3, maxPerFrame: 2, lookAhead: 1.2, unloadPad: 1 };
+  const buildStats = { count: 0, totalMs: 0, maxMs: 0, lastMs: 0 };
+  let queue = [];
+  let lastPx = null;
+  let lastPz = null;
+  let lastKey = "";
+
+  function disposeChunk(gp) {
+    scene.remove(gp);
+    gp.children.forEach((c) => {
+      if (c.isInstancedMesh) c.dispose();
+      else if (c.geometry && !sharedGeos.has(c.geometry)) c.geometry.dispose();
+    });
+  }
+
+  function buildTimed(cx, cz) {
+    const t0 = performance.now();
+    const g = build(cx, cz);
+    const ms = performance.now() - t0;
+    buildStats.count++;
+    buildStats.totalMs += ms;
+    buildStats.lastMs = ms;
+    if (ms > buildStats.maxMs) buildStats.maxMs = ms;
+    loaded++;
+    return g;
+  }
+
   function stream(px, pz) {
     const cx = Math.floor(px / CH);
     const cz = Math.floor(pz / CH);
-    const want = new Set();
-    for (let i = -RAD; i <= RAD; i++) {
-      for (let j = -RAD; j <= RAD; j++) {
-        const k = cx + i + "," + (cz + j);
-        want.add(k);
-        if (!chunks.has(k)) {
-          chunks.set(k, build(cx + i, cz + j));
-          loaded++;
+    // Hướng di chuyển (nạp trước phía trước xe)
+    let vx = 0;
+    let vz = 0;
+    if (lastPx !== null) {
+      vx = px - lastPx;
+      vz = pz - lastPz;
+      const l = Math.hypot(vx, vz);
+      if (l > 0.001 && l < CH) {
+        vx /= l;
+        vz /= l;
+      } else {
+        vx = vz = 0;
+      }
+    }
+    lastPx = px;
+    lastPz = pz;
+
+    const key = cx + "," + cz + "|" + Math.sign(Math.round(vx * 2)) + "," + Math.sign(Math.round(vz * 2));
+    if (key !== lastKey) {
+      lastKey = key;
+      const want = new Set();
+      const need = [];
+      for (let i = -RAD; i <= RAD; i++) {
+        for (let j = -RAD; j <= RAD; j++) {
+          const k = cx + i + "," + (cz + j);
+          want.add(k);
+          if (!chunks.has(k)) {
+            // chunk phía trước được ưu tiên hơn (khoảng cách trừ đi thành phần hướng)
+            const pri = Math.hypot(i, j) - (i * vx + j * vz) * streamCfg.lookAhead;
+            need.push({ k, x: cx + i, z: cz + j, pri });
+          }
+        }
+      }
+      need.sort((a, b) => a.pri - b.pri);
+      queue = need;
+      // Dỡ chunk ngoài vùng (có độ trễ 1 ô để tránh nhấp nháy ở biên)
+      for (const [k, gp] of chunks) {
+        if (want.has(k)) continue;
+        const [x, z] = k.split(",").map(Number);
+        if (Math.max(Math.abs(x - cx), Math.abs(z - cz)) > RAD + streamCfg.unloadPad) {
+          disposeChunk(gp);
+          chunks.delete(k);
+          unloaded++;
         }
       }
     }
-    for (const [k, gp] of chunks) {
-      if (!want.has(k)) {
-        scene.remove(gp);
-        gp.children.forEach((c) => {
-          if (c.isInstancedMesh) c.dispose();
-          else if (c.geometry && !sharedGeos.has(c.geometry)) c.geometry.dispose();
-        });
-        chunks.delete(k);
-        unloaded++;
-      }
+
+    // Chunk dưới chân chưa có (spawn/teleport) -> dựng đồng bộ ngay để không rơi vào hư không
+    const centerKey = cx + "," + cz;
+    if (!chunks.has(centerKey)) {
+      chunks.set(centerKey, buildTimed(cx, cz));
+      queue = queue.filter((q) => q.k !== centerKey);
+    }
+
+    const t0 = performance.now();
+    let n = 0;
+    while (queue.length && n < streamCfg.maxPerFrame && performance.now() - t0 < streamCfg.budgetMs) {
+      const q = queue.shift();
+      if (chunks.has(q.k)) continue;
+      chunks.set(q.k, buildTimed(q.x, q.z));
+      n++;
+    }
+  }
+
+  // Dựng toàn bộ hàng đợi ngay (dùng khi khởi động/benchmark)
+  function streamFlush() {
+    while (queue.length) {
+      const q = queue.shift();
+      if (!chunks.has(q.k)) chunks.set(q.k, buildTimed(q.x, q.z));
     }
   }
 
@@ -858,6 +934,9 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
       parkedVehicle.userData.bdMat.color.setHex(hex);
     },
     setBrakeLight: (braking) => root.userData.setBrakeLight(braking),
-    getChunkStats: () => ({ active: chunks.size, loaded, unloaded }),
+    streamFlush,
+    streamCfg,
+    getBuildStats: () => ({ ...buildStats, queued: queue.length }),
+    getChunkStats: () => ({ active: chunks.size, loaded, unloaded, queued: queue.length }),
   };
 }
