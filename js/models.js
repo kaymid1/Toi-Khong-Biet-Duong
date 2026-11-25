@@ -269,6 +269,88 @@ export function createPlayerBikeRig() {
     body.add(g);
   }
 
+  // 5. SEDAN (Ô tô 4 chỗ)
+  const carGlassMat = mat(0x1f3040);
+  const plateMat = mat(0xfafafa);
+  {
+    const g = new THREE.Group();
+    const lower = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.56, 3.45), bdMat);
+    lower.position.set(0, 0.56, 0);
+    lower.castShadow = true;
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.48, 1.75), bdMat);
+    cabin.position.set(0, 1.06, -0.15);
+    cabin.castShadow = true;
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.36, 1.56), carGlassMat);
+    glass.position.set(0, 1.05, -0.15);
+    const windF = new THREE.Mesh(new THREE.BoxGeometry(1.26, 0.42, 0.08), carGlassMat);
+    windF.position.set(0, 1.02, 0.72);
+    windF.rotation.x = -0.52;
+    const bumperF = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.18, 0.2), darkMat);
+    bumperF.position.set(0, 0.34, 1.66);
+    const hlL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.06), headLightMat);
+    hlL.position.set(-0.52, 0.56, 1.73);
+    const hlR = hlL.clone();
+    hlR.position.x = 0.52;
+    const tlL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.06), tailMat);
+    tlL.position.set(-0.5, 0.62, -1.73);
+    const tlR = tlL.clone();
+    tlR.position.x = 0.5;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.04), plateMat);
+    plate.position.set(0, 0.42, -1.74);
+    g.add(lower, cabin, glass, windF, bumperF, hlL, hlR, tlL, tlR, plate);
+    g.visible = false;
+    variantGroups.sedan = g;
+    body.add(g);
+  }
+
+  // 6. SUV (Ô tô phượt cao tốc)
+  {
+    const g = new THREE.Group();
+    const lower = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.66, 3.65), bdMat);
+    lower.position.set(0, 0.66, 0);
+    lower.castShadow = true;
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.58, 2.35), bdMat);
+    cabin.position.set(0, 1.24, -0.35);
+    cabin.castShadow = true;
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.42, 2.15), carGlassMat);
+    glass.position.set(0, 1.23, -0.35);
+    const rackL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.85), darkMat);
+    rackL.position.set(-0.58, 1.56, -0.35);
+    const rackR = rackL.clone();
+    rackR.position.x = 0.58;
+    const bumperF = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.22, 0.24), darkMat);
+    bumperF.position.set(0, 0.42, 1.76);
+    const hlL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.06), headLightMat);
+    hlL.position.set(-0.58, 0.68, 1.83);
+    const hlR = hlL.clone();
+    hlR.position.x = 0.58;
+    const tlL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.18, 0.06), tailMat);
+    tlL.position.set(-0.58, 0.72, -1.83);
+    const tlR = tlL.clone();
+    tlR.position.x = 0.58;
+    const spare = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.18, 12), darkMat);
+    spare.rotation.x = Math.PI / 2;
+    spare.position.set(0, 0.78, -1.88);
+    g.add(lower, cabin, glass, rackL, rackR, bumperF, hlL, hlR, tlL, tlR, spare);
+    g.visible = false;
+    variantGroups.suv = g;
+    body.add(g);
+  }
+
+  // 4 Car wheels
+  const carWheelGroup = new THREE.Group();
+  const cwFL = makeWheel(0.35, 0.22);
+  cwFL.position.set(-0.76, 0.35, 1.05);
+  const cwFR = makeWheel(0.35, 0.22);
+  cwFR.position.set(0.76, 0.35, 1.05);
+  const cwRL = makeWheel(0.35, 0.22);
+  cwRL.position.set(-0.76, 0.35, -1.05);
+  const cwRR = makeWheel(0.35, 0.22);
+  cwRR.position.set(0.76, 0.35, -1.05);
+  carWheelGroup.add(cwFL, cwFR, cwRL, cwRR);
+  carWheelGroup.visible = false;
+  body.add(carWheelGroup);
+
   // Rider with half-shell helmet
   const rider = new THREE.Group();
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.52, 0.24), shirtMat);
@@ -304,20 +386,80 @@ export function createPlayerBikeRig() {
   visor.rotation.x = 0.18;
 
   rider.add(torso, legL, legR, armL, armR, head, helmet, visor);
-  body.add(wRear, frontFork, rider);
+
+  // Pillion passenger on rear motorbike seat
+  const pillion = new THREE.Group();
+  const pShirtMat = mat(0x3ddc97);
+  const pTorso = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.48, 0.22), pShirtMat);
+  pTorso.position.set(0, 1.16, -0.5);
+  pTorso.rotation.x = 0.2;
+  pTorso.castShadow = true;
+  const pLegL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.14), pantsMat);
+  pLegL.position.set(-0.16, 0.72, -0.38);
+  pLegL.rotation.x = -0.25;
+  const pLegR = pLegL.clone();
+  pLegR.position.x = 0.16;
+  const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 10), skinMat);
+  pHead.position.set(0, 1.53, -0.44);
+  const pHelmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.175, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    mat(0xffffff)
+  );
+  pHelmet.position.set(0, 1.55, -0.44);
+  pillion.add(pTorso, pLegL, pLegR, pHead, pHelmet);
+  pillion.visible = false;
+
+  body.add(wRear, frontFork, rider, pillion);
+
+  let isCar = false;
+  let riderVisible = true;
+  let pillionActive = false;
+
+  function syncVisibility() {
+    wRear.visible = !isCar;
+    frontFork.visible = !isCar;
+    rider.visible = !isCar && riderVisible;
+    carWheelGroup.visible = isCar;
+    pillion.visible = !isCar && pillionActive;
+    blob.scale.set(isCar ? 1.65 : 1.0, isCar ? 1.85 : 1.0, 1);
+  }
 
   function setBikeModel(bikeId, hexColor) {
     bdMat.color.setHex(hexColor);
+    isCar = bikeId === "sedan" || bikeId === "suv";
     Object.entries(variantGroups).forEach(([id, grp]) => {
       grp.visible = id === bikeId;
     });
-    // Adjust rider lean slightly for sporty bikes
     torso.rotation.x = bikeId === "pkl" || bikeId === "manual" ? 0.32 : 0.15;
+    syncVisibility();
+  }
+
+  function setRiderVisible(v) {
+    riderVisible = !!v;
+    syncVisibility();
+  }
+
+  function setPillion(active, hexColor = 0x3ddc97) {
+    pillionActive = !!active;
+    pShirtMat.color.setHex(hexColor);
+    syncVisibility();
   }
 
   function setBrakeLight(braking) {
     tailMat.emissive.setHex(braking ? 0xff1744 : 0x330000);
     tailMat.emissiveIntensity = braking ? 2.2 : 0.8;
+  }
+
+  function spinWheels(deltaAngle, steerAngle) {
+    wFrontLocal.rotation.x += deltaAngle;
+    wRear.rotation.x += deltaAngle;
+    frontFork.rotation.y = steerAngle;
+    cwFL.rotation.x += deltaAngle;
+    cwFR.rotation.x += deltaAngle;
+    cwRL.rotation.x += deltaAngle;
+    cwRR.rotation.x += deltaAngle;
+    cwFL.rotation.y = steerAngle * 0.7;
+    cwFR.rotation.y = steerAngle * 0.7;
   }
 
   const chat = createChatBubbleHelper(root, 2.65);
@@ -329,7 +471,87 @@ export function createPlayerBikeRig() {
     w2: wRear,
     bdMat,
     setBikeModel,
+    setRiderVisible,
+    setPillion,
     setBrakeLight,
+    spinWheels,
+    chat,
+    say: chat.say,
+    updateChat: chat.update,
+  };
+  return root;
+}
+
+export function createWalkerRig() {
+  const root = new THREE.Group();
+  const blobTex = makeBlobShadowTexture();
+  const blob = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.95, 0.95),
+    new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false })
+  );
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.y = 0.03;
+  root.add(blob);
+
+  const body = new THREE.Group();
+  const shirtMat = mat(0x2d6cdf);
+  const pantsMat = mat(0x283546);
+  const skinMat = mat(0xf0c29c);
+  const capMat = mat(0xf5b82e);
+
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.56, 0.15), pantsMat);
+  legL.position.set(-0.1, 0.28, 0);
+  legL.castShadow = true;
+  const legR = legL.clone();
+  legR.position.x = 0.1;
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.54, 0.24), shirtMat);
+  torso.position.set(0, 0.84, 0);
+  torso.castShadow = true;
+
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.46, 0.11), shirtMat);
+  armL.position.set(-0.26, 0.84, 0);
+  armL.castShadow = true;
+  const armR = armL.clone();
+  armR.position.x = 0.26;
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 10), skinMat);
+  head.position.set(0, 1.3, 0);
+  head.castShadow = true;
+
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.56),
+    capMat
+  );
+  helmet.position.set(0, 1.32, 0);
+  helmet.castShadow = true;
+
+  body.add(legL, legR, torso, armL, armR, head, helmet);
+  root.add(body);
+
+  let walkPhase = 0;
+  function animateWalk(speed, dt) {
+    if (Math.abs(speed) > 0.2) {
+      walkPhase += dt * Math.abs(speed) * 2.4;
+      const swing = Math.sin(walkPhase) * 0.55;
+      legL.rotation.x = swing;
+      legR.rotation.x = -swing;
+      armL.rotation.x = -swing * 0.8;
+      armR.rotation.x = swing * 0.8;
+      body.position.y = Math.abs(Math.cos(walkPhase)) * 0.04;
+    } else {
+      legL.rotation.x *= 0.8;
+      legR.rotation.x *= 0.8;
+      armL.rotation.x *= 0.8;
+      armR.rotation.x *= 0.8;
+      body.position.y *= 0.8;
+    }
+  }
+
+  const chat = createChatBubbleHelper(root, 2.35);
+  root.userData = {
+    body,
+    animateWalk,
     chat,
     say: chat.say,
     updateChat: chat.update,

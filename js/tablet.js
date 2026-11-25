@@ -30,7 +30,7 @@ function hint(cx, cy) {
   return "phía " + d;
 }
 
-export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed }) {
+export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed, getMode }) {
   const byN = new Map();
   R0.forEach((r, i) => {
     if (r.n && r.c >= 1 && r.c <= 3) {
@@ -341,11 +341,12 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed 
       tab.classList.remove("open");
       return;
     }
-    if (Math.abs(getSpeed()) > 0.8) {
+    const m = getMode ? getMode() : "drive";
+    if (m === "drive" && Math.abs(getSpeed()) > 0.8) {
       toast("Hãy dừng xe hẳn để mở tablet!", "var(--acc)");
       return;
     }
-    setSpeed(0);
+    if (m === "drive") setSpeed(0);
     tab.classList.add("open");
   }
   $("tb").onclick = toggleTablet;

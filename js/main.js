@@ -97,6 +97,7 @@ async function boot() {
     setSpeed: (v) => {
       if (drivingRef) drivingRef.setSpeed(v);
     },
+    getMode: () => (drivingRef ? drivingRef.getMode() : "drive"),
   });
 
   // ---- Garage & Settings ----
@@ -114,6 +115,8 @@ async function boot() {
       const card = document.createElement("div");
       card.className = "bike-card" + (active ? " active" : "");
       const hex = "#" + b.color.toString(16).padStart(6, "0");
+      const hwTag = b.allowHighway ? "🛣️ Cao tốc OK" : "⛔ Cấm cao tốc";
+      const seatsTag = "💺 " + (1 + (b.maxPassengers || 1)) + " chỗ";
       card.innerHTML =
         '<h4><span class="bike-dot" style="background:' +
         hex +
@@ -125,18 +128,21 @@ async function boot() {
         "</p>" +
         '<div class="bike-stats">Tốc độ: ' +
         Math.round(b.boostSpd * 3.6) +
-        " km/h · Hao xăng: x" +
-        b.fuelMult +
+        " km/h · " +
+        hwTag +
+        " · " +
+        seatsTag +
         "</div>";
       const btn = document.createElement("button");
       if (active) {
-        btn.textContent = "✓ Đang chạy";
+        btn.textContent = "✓ Đang chọn";
         btn.disabled = true;
       } else if (owned) {
-        btn.textContent = "Chọn xe này";
+        btn.textContent = "Đổi sang xe này";
         btn.onclick = () => {
           profile.activeBike = b.id;
           world.setBikeModel(b.id, b.color);
+          if (drivingRef) drivingRef.ensureLegalRoadAfterBikeChange();
           saveProfile();
           renderGarage();
           toast("Đã đổi sang " + b.name, "var(--ok)");
@@ -152,10 +158,11 @@ async function boot() {
           profile.ownedBikes.push(b.id);
           profile.activeBike = b.id;
           world.setBikeModel(b.id, b.color);
+          if (drivingRef) drivingRef.ensureLegalRoadAfterBikeChange();
           saveProfile();
           playSuccess(state.soundOn);
           renderGarage();
-          toast("Đã mua & lên xe " + b.name + "!", "var(--ok)");
+          toast("Đã mua & lên " + b.name + "!", "var(--ok)");
         };
       }
       card.appendChild(btn);
@@ -234,6 +241,7 @@ async function boot() {
       z: world.me.position.z,
       heading: drivingRef.getHeading(),
       speed: drivingRef.getSpeed(),
+      mode: drivingRef.getMode(),
     }),
     onReceiveFuel: (amt) => {
       const before = state.fuel;
@@ -241,11 +249,15 @@ async function boot() {
       saveProfile();
       return state.fuel - before;
     },
+    onEnterPassenger: () => drivingRef.enterPassengerMode(),
+    onUpdatePassenger: (host) => drivingRef.updatePassengerPose(host),
   });
 
   $("re").onclick = drivingRef.reposition;
   $("fuelBtn").onclick = drivingRef.refuel;
   $("shareFuelBtn").onclick = partyRef.shareFuel;
+  $("rideMateBtn").onclick = partyRef.rideWithNearestMate;
+  $("dismountBtn").onclick = drivingRef.toggleDismount;
   $("hornBtn").onclick = drivingRef.honk;
   $("hintBtn").onclick = () => {
     state.hudHint = !state.hudHint;
@@ -323,6 +335,8 @@ async function boot() {
       }
     }
     if (k === "p") toggleParty();
+    if (k === "v") drivingRef.toggleDismount();
+    if (k === "c") partyRef.rideWithNearestMate();
     if (k === "e") partyRef.shareFuel();
     if (k === "g") toggleGarage();
     if (k === "r") drivingRef.reposition();
@@ -364,8 +378,9 @@ async function boot() {
     drivingRef.update(dt);
     partyRef.update(dt);
     const spd = drivingRef.getSpeed();
+    const curMode = drivingRef.getMode();
     const bike = getActiveBike();
-    updateEngineSound(state.soundOn, spd, state.fuel <= 0.05, bike);
+    updateEngineSound(state.soundOn, spd, curMode !== "drive" || state.fuel <= 0.05, bike);
 
     world.renderer.render(world.scene, world.cam);
 
@@ -401,6 +416,18 @@ async function boot() {
 
       $("compass").textContent = "🧭 " + compassDir(drivingRef.getHeading());
 
+      const dBtn = $("dismountBtn");
+      if (dBtn) {
+        dBtn.textContent =
+          curMode === "drive"
+            ? "🚶 Xuống xe (V)"
+            : curMode === "passenger"
+            ? "🚶 Xuống xe bạn (V)"
+            : bike.vehicleType === "car"
+            ? "🚗 Lên ô tô (V)"
+            : "🏍️ Lên xe (V)";
+      }
+
       const nearSt = world.stations.some((st) => Math.hypot(st.x - mx, st.z - mz) < 11);
       const cost = Math.max(1000, Math.round(((100 - state.fuel) * 250) / 1000) * 1000);
       const fb = $("fuelBtn");
@@ -408,6 +435,7 @@ async function boot() {
       if (nearSt && state.fuel < 99) fb.textContent = "⛽ Đổ đầy bình (-" + cost.toLocaleString("vi-VN") + "đ) (F)";
 
       const rLim = ROAD_LIMITS[drivingRef.getRoadClass()] || ROAD_LIMITS[2];
+      const modeLabel = curMode === "walk" ? "Đi bộ" : curMode === "passenger" ? "Ngồi ké xe bạn" : bike.name;
       const streetTxt = state.hudHint ? near : "<i>Đọc biển báo ngã tư</i>";
       $("statTxt").innerHTML =
         "Hạng <b style='color:var(--acc)'>" +
@@ -419,7 +447,7 @@ async function boot() {
         "/" +
         tablet.STS.length +
         "</b> · " +
-        bike.name +
+        modeLabel +
         "<br>" +
         rLim.label +
         ": <b>" +
@@ -432,9 +460,9 @@ async function boot() {
 
     const kmh = Math.round(Math.abs(spd) * 3.6);
     const rLim = ROAD_LIMITS[drivingRef.getRoadClass()] || ROAD_LIMITS[2];
-    const maxKmh = rLim.maxKmh || 60;
-    $("limitSign").textContent = maxKmh;
-    $("limitSign").classList.toggle("over", kmh > maxKmh + 3);
+    const maxKmh = (bike.allowHighway ? rLim.carMaxKmh : rLim.maxKmh) || 60;
+    $("limitSign").textContent = curMode === "walk" ? "🚶" : maxKmh;
+    $("limitSign").classList.toggle("over", curMode === "drive" && kmh > maxKmh + 3);
 
     $("xp").style.width = (state.xp % 100) + "%";
     $("xpLbl").textContent = (state.xp % 100) + "%";

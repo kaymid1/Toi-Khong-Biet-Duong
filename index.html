@@ -36,6 +36,7 @@
   <div id="acts">
     <button id="fuelBtn">⛽ Đổ đầy bình (F)</button>
     <button id="shareFuelBtn">⛽ Chiết xăng cho đồng đội (E)</button>
+    <button id="rideMateBtn">🙋 Ngồi ké xe bạn (C)</button>
     <div id="chatBar">
       <div class="qchat-row">
         <button class="qchat" data-msg="Chào cả đoàn nha!">👋 Chào</button>
@@ -51,8 +52,9 @@
     <div class="act-row">
       <button id="tb">📱 Tablet (T)</button>
       <button id="chatBtn">💬 Chat (Enter)</button>
+      <button id="dismountBtn">🚶 Xuống xe (V)</button>
       <button id="partyBtn">👥 Phượt / Bạn bè (P)</button>
-      <button id="garBtn">🏍️ Garage (G)</button>
+      <button id="garBtn">🏠 Kho xe (G)</button>
       <button id="hornBtn" title="Còi xe (Space)">📢</button>
       <button id="re" title="Về đường gần nhất (R)">📍</button>
     </div>
@@ -94,7 +96,7 @@
         <g id="g"></g>
       </svg>
       <div class="ft">
-        Kéo để di chuyển, lăn chuột (+/−) để phóng to. Vàng: Quốc lộ phượt · Đứt đỏ: Cao tốc (cấm xe máy). ★ Địa danh · ⛽ Cây xăng · 🚩 Điểm tập kết.
+        Kéo để di chuyển, lăn chuột (+/−) để phóng to. Vàng: Quốc lộ · Đứt đỏ: Cao tốc (chỉ Ô tô). ★ Địa danh · ⛽ Cây xăng · 🚩 Điểm tập kết.
       </div>
     </div>
     <div class="tab-home"></div>
@@ -102,12 +104,12 @@
 
   <div id="garage">
     <div class="top">
-      <span>🏍️ Garage Xe · Tiền hiện có: <b id="garMoney" style="color:var(--acc)">0đ</b></span>
+      <span>🏠 Kho Nhà Xe · Tiền hiện có: <b id="garMoney" style="color:var(--acc)">0đ</b></span>
       <button id="gx">Đóng</button>
     </div>
     <div id="garList" class="gar-grid"></div>
     <div class="set-help" style="margin-top:8px">
-      ⚖️ <b>Quy định VN:</b> Xe mô tô, xe gắn máy (kể cả PKL) chỉ lưu thông trên Quốc lộ &amp; đường nội bộ, không đi vào làn Cao tốc.
+      ⚖️ <b>Quy định VN:</b> Xe máy chỉ đi Quốc lộ &amp; nội đô (tối đa 2 người). Muốn chạy lên <b>Cao tốc</b> hoặc chở 4 người cần đổi sang <b>Ô tô</b>.
     </div>
   </div>
 
@@ -127,6 +129,7 @@
           <button id="createPartyBtn">➕ Tạo đoàn mới</button>
           <button id="copyRoomBtn">🔗 Link mời</button>
           <button id="addBotBtn">🏍️ Thêm bạn AI</button>
+          <button id="botRideBtn">🙋 Đèo bạn AI cùng xe</button>
           <button id="leavePartyBtn" class="danger-btn">Rời đoàn</button>
         </div>
         <div class="set-row" style="margin-top:8px">
@@ -136,7 +139,7 @@
         <div class="set-row" style="margin-top:8px">
           <select id="partyWpSel" style="width:100%"></select>
         </div>
-        <div class="sub-lbl">Thành viên trong đoàn (lại gần bấm <b>E</b> để chiết xăng):</div>
+        <div class="sub-lbl">Thành viên trong đoàn (<b>E</b> chiết xăng · Xuống xe <b>V</b> rồi bấm <b>C</b> ngồi ké):</div>
         <div id="partyMembers" class="mate-list"></div>
       </div>
 

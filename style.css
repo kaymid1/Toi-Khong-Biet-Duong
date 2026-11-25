@@ -148,9 +148,10 @@ button.dim { opacity: .55; }
 }
 #re.pulse { border-color: var(--acc); animation: pl 1s infinite; }
 @keyframes pl { 50% { background: #7a5a10; } }
-#fuelBtn, #shareFuelBtn { display: none; border-color: var(--ok); background: #174734; font-weight: 600; }
-#fuelBtn.show, #shareFuelBtn.show { display: block; animation: pl 1.2s infinite; }
+#fuelBtn, #shareFuelBtn, #rideMateBtn { display: none; border-color: var(--ok); background: #174734; font-weight: 600; }
+#fuelBtn.show, #shareFuelBtn.show, #rideMateBtn.show { display: block; animation: pl 1.2s infinite; }
 #shareFuelBtn { border-color: var(--acc); background: #5a3c0e; }
+#rideMateBtn { border-color: #4fc3f7; background: #133c5a; }
 
 #chatBar {
   display: none;

@@ -2,6 +2,7 @@ import { geo, WD, $ } from "./state.js";
 import {
   makeFacadeTexture,
   createPlayerBikeRig,
+  createWalkerRig,
   createNpcMesh,
   createGasStationMesh,
   createLandmarkMesh,
@@ -773,9 +774,18 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     scene.add(gLm);
   });
 
-  // Xe người chơi, cột mốc tập kết & NPC
+  // Xe người chơi, xe đỗ, nhân vật đi bộ, cột mốc tập kết & NPC
   const root = createPlayerBikeRig();
   scene.add(root);
+
+  const parkedVehicle = createPlayerBikeRig();
+  parkedVehicle.userData.setRiderVisible(false);
+  parkedVehicle.visible = false;
+  scene.add(parkedVehicle);
+
+  const walker = createWalkerRig();
+  walker.visible = false;
+  scene.add(walker);
 
   const waypointBeacon = createWaypointBeacon();
   scene.add(waypointBeacon);
@@ -826,6 +836,8 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     cam,
     ground,
     me: root,
+    parkedVehicle,
+    walker,
     npcs,
     cell,
     stations,
@@ -837,8 +849,14 @@ export function initWorld3D({ R0, LANDMARKS, REAL_STATIONS }) {
     updateSunTarget,
     setQuality,
     setWaypoint,
-    setBikeModel: (bikeId, hex) => root.userData.setBikeModel(bikeId, hex),
-    setBikeColor: (hex) => root.userData.bdMat.color.setHex(hex),
+    setBikeModel: (bikeId, hex) => {
+      root.userData.setBikeModel(bikeId, hex);
+      parkedVehicle.userData.setBikeModel(bikeId, hex);
+    },
+    setBikeColor: (hex) => {
+      root.userData.bdMat.color.setHex(hex);
+      parkedVehicle.userData.bdMat.color.setHex(hex);
+    },
     setBrakeLight: (braking) => root.userData.setBrakeLight(braking),
     getChunkStats: () => ({ active: chunks.size, loaded, unloaded }),
   };

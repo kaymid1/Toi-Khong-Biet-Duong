@@ -18,18 +18,20 @@ const AI_BUDDIES = [
   { name: "Tuấn Ex", bikeId: "manual", color: 0xffb020 },
 ];
 
-export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel }) {
+export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel, onEnterPassenger, onUpdatePassenger }) {
   const modal = $("partyModal");
   const myPeerId = profile.friendCode + "-" + Math.floor(100 + Math.random() * 900);
 
   let roomCode = "";
   let isLeader = false;
   let waypoint = null; // { x, z, label }
+  let ridingHostId = null;
+  let botPassengerId = null;
   let bc = null;
   let peer = null;
   let hostConn = null;
   const guestConns = new Map(); // peerId -> DataConnection (when host)
-  const remotes = new Map(); // id -> { id, name, friendCode, bikeId, color, fuel, x, z, heading, speed, tx, tz, th, mesh, isBot, lastSeen, lowWarned }
+  const remotes = new Map(); // id -> { id, name, friendCode, bikeId, color, fuel, x, z, heading, speed, tx, tz, th, mesh, isBot, mode, ridingHostId, lastSeen, lowWarned, cruiseTarget }
   let botCounter = 0;
   let syncTimer = 0;
   let uiTimer = 0;
@@ -132,6 +134,8 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
           bikeId: pkt.bikeId || "cub",
           color: pkt.color ?? 0x3ddc97,
           fuel: pkt.fuel ?? 100,
+          mode: pkt.mode || "drive",
+          ridingHostId: pkt.ridingHostId || null,
           x: pkt.x,
           z: pkt.z,
           heading: pkt.heading || 0,
@@ -155,14 +159,17 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
         r.name = pkt.name || r.name;
         r.friendCode = pkt.friendCode || r.friendCode;
         r.fuel = pkt.fuel ?? r.fuel;
+        r.mode = pkt.mode || "drive";
+        r.ridingHostId = pkt.ridingHostId || null;
         r.tx = pkt.x;
         r.tz = pkt.z;
         r.th = pkt.heading || 0;
         r.speed = pkt.speed || 0;
         r.lastSeen = performance.now();
       }
-      if (r.mesh && r.mesh.userData.updateLabel) {
-        r.mesh.userData.updateLabel(r.name, r.fuel);
+      if (r.mesh) {
+        r.mesh.visible = r.mode !== "passenger";
+        if (r.mesh.userData.updateLabel) r.mesh.userData.updateLabel(r.name, r.fuel);
       }
     } else if (pkt.type === "waypoint") {
       waypoint = pkt.waypoint || null;
@@ -282,7 +289,10 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
     roomCode = "";
     isLeader = false;
     waypoint = null;
+    ridingHostId = null;
+    botPassengerId = null;
     world.setWaypoint(null);
+    if (world.me && world.me.userData.setPillion) world.me.userData.setPillion(false);
     cleanupPeer();
     clearRemotes(false);
     renderPartyUI();
@@ -312,6 +322,8 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
       bikeId: tmpl.bikeId,
       color: tmpl.color,
       fuel: 58,
+      mode: "drive",
+      ridingHostId: null,
       x: p ? p[0] : self.x,
       z: p ? p[1] : self.z,
       heading: self.heading,
@@ -322,6 +334,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
       isBot: true,
       lastSeen: performance.now(),
       lowWarned: false,
+      cruiseTarget: null,
     };
     remotes.set(id, bot);
     ensureMesh(bot);
@@ -419,6 +432,76 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
     toast("⛽ Đã chiết 20% xăng cho " + target.name + " (+15 XP · +5.000đ)", "var(--ok)");
     renderPartyUI();
     return true;
+  }
+
+  function getNearestRideTarget() {
+    const self = getSelfState();
+    if (self.mode !== "walk") return null;
+    let best = null;
+    let bd = 6.2;
+    for (const r of remotes.values()) {
+      if (r.mode === "passenger") continue;
+      const d = Math.hypot(r.x - self.x, r.z - self.z);
+      if (d < bd) {
+        bd = d;
+        best = r;
+      }
+    }
+    return best;
+  }
+
+  function rideWithNearestMate() {
+    const target = getNearestRideTarget();
+    if (!target) return false;
+    ridingHostId = target.id;
+    if (onEnterPassenger) onEnterPassenger(target);
+    const greet = "Cho mình ngồi ké xe nhé!";
+    if (world.walker && world.walker.userData.say) world.walker.userData.say(greet);
+    speakChat(greet, state.ttsOn, { pitch: 1.05, voiceIndex: 0 });
+    if (target.isBot) {
+      const reply = "Lên xe đi, mình chở bạn đi phượt nè!";
+      setTimeout(() => {
+        if (target.mesh && target.mesh.userData.say) target.mesh.userData.say(reply);
+        speakChat(reply, state.ttsOn, { pitch: target.name.includes("Lan") ? 1.22 : 0.94, voiceIndex: 1 });
+      }, 900);
+    }
+    toast("🙋 Đang ngồi ké xe " + target.name + " (Mở Tablet T chỉ đường · Bấm V để xuống)", "var(--ok)");
+    renderPartyUI();
+    return true;
+  }
+
+  function toggleBotPassenger() {
+    if (botPassengerId) {
+      const b = remotes.get(botPassengerId);
+      if (b) {
+        b.mode = "drive";
+        b.ridingHostId = null;
+        if (b.mesh) b.mesh.visible = true;
+      }
+      botPassengerId = null;
+      toast("Bạn AI đã xuống xe chạy riêng", "var(--mut)");
+      renderPartyUI();
+      return;
+    }
+    const self = getSelfState();
+    if (self.mode !== "drive") {
+      toast("Hãy lên xe cầm lái trước để đèo bạn AI!", "var(--acc)");
+      return;
+    }
+    let bot = [...remotes.values()].find((r) => r.isBot);
+    if (!bot) {
+      addBotBuddy();
+      bot = [...remotes.values()].find((r) => r.isBot);
+    }
+    if (!bot) return;
+    bot.mode = "passenger";
+    bot.ridingHostId = myPeerId;
+    if (bot.mesh) bot.mesh.visible = false;
+    botPassengerId = bot.id;
+    const msg = "Cảm ơn bạn đã cho quá giang! Đi phượt thôi!";
+    speakChat(msg, state.ttsOn, { pitch: bot.name.includes("Lan") ? 1.22 : 0.94, voiceIndex: 1 });
+    toast("🙋 " + bot.name + " đã lên ngồi sau xe của bạn!", "var(--ok)");
+    renderPartyUI();
   }
 
   function renderPartyUI() {
@@ -535,6 +618,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
   if ($("joinPartyBtn")) $("joinPartyBtn").onclick = () => joinRoom($("joinRoomInp").value);
   if ($("leavePartyBtn")) $("leavePartyBtn").onclick = () => leaveRoom(false);
   if ($("addBotBtn")) $("addBotBtn").onclick = addBotBuddy;
+  if ($("botRideBtn")) $("botRideBtn").onclick = toggleBotPassenger;
   if ($("addFriendBtn")) {
     $("addFriendBtn").onclick = () => {
       addFriend($("friendCodeInp").value, $("friendNameInp").value);
@@ -556,56 +640,107 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
     const self = getSelfState();
     const now = performance.now();
 
-    // Update AI bots (convoy formation on legal roads) & interpolate human peers
-    let idx = 0;
-    for (const [id, r] of remotes) {
-      if (r.isBot) {
-        // Target a spot slightly behind/beside the leader
-        const sideOffset = idx % 2 === 0 ? -2.2 : 2.2;
-        const backOffset = 4.2 + idx * 2.6;
-        const fx = Math.sin(self.heading);
-        const fz = Math.cos(self.heading);
-        const ux = -fz;
-        const uz = fx;
-        const desiredX = self.x - fx * backOffset + ux * sideOffset;
-        const desiredZ = self.z - fz * backOffset + uz * sideOffset;
+    if (self.mode !== "passenger" && ridingHostId) {
+      ridingHostId = null;
+    }
 
-        const dx = desiredX - r.x;
-        const dz = desiredZ - r.z;
-        const dist = Math.hypot(dx, dz);
-        if (dist > 75) {
-          const p = world.nearestRoad(desiredX, desiredZ, 2);
-          if (p) {
-            r.x = p[0];
-            r.z = p[1];
-          }
-        } else if (dist > 1.3) {
-          const spd = Math.min(34, Math.max(4, dist * 2.4));
-          const vx = (dx / dist) * spd * dt;
-          const vz = (dz / dist) * spd * dt;
-          if (world.onRoad(r.x + vx, r.z + vz, 0.8, false)) {
-            r.x += vx;
-            r.z += vz;
-          } else {
-            const nr = world.nearestRoad(r.x + vx, r.z + vz, 1);
-            if (nr) {
-              r.x += (nr[0] - r.x) * 0.4;
-              r.z += (nr[1] - r.z) * 0.4;
+    // Update AI bots (convoy formation OR chauffeur driving when player rides pillion) & human peers
+    let idx = 0;
+    let myPassengerColor = null;
+    for (const [id, r] of remotes) {
+      if (r.ridingHostId === myPeerId) {
+        myPassengerColor = r.color;
+      }
+
+      if (r.isBot) {
+        if (r.mode === "passenger" && r.ridingHostId === myPeerId) {
+          r.x = self.x;
+          r.z = self.z;
+          r.heading = self.heading;
+          r.speed = self.speed;
+        } else if (id === ridingHostId) {
+          // Chauffeur mode: AI drives along roads toward waypoint or cruises around
+          if (!r.cruiseTarget || Math.hypot(r.cruiseTarget.x - r.x, r.cruiseTarget.z - r.z) < 12) {
+            if (waypoint) {
+              r.cruiseTarget = { x: waypoint.x, z: waypoint.z };
+            } else {
+              const p = world.nearestRoad(
+                r.x + (Math.random() - 0.5) * 180,
+                r.z + (Math.random() - 0.5) * 180,
+                3
+              );
+              if (p) r.cruiseTarget = { x: p[0], z: p[1] };
             }
           }
-          r.heading = Math.atan2(dx, dz);
-          r.speed = spd;
-          r.fuel = Math.max(5, r.fuel - spd * dt * 0.09);
-          if (r.fuel < 35 && !r.lowWarned) {
-            r.lowWarned = true;
-            const helpMsg = "Sắp hết xăng rồi, ai chiết giúp mình với!";
-            if (r.mesh && r.mesh.userData.say) r.mesh.userData.say(helpMsg);
-            speakChat(helpMsg, state.ttsOn, { pitch: r.name.includes("Lan") ? 1.2 : 0.96, voiceIndex: idx + 1 });
-            toast("⛽ " + r.name + ": 'Sắp hết xăng rồi! Lại gần bấm (E) chiết giúp với!'", "var(--acc)");
+          if (r.cruiseTarget) {
+            const dx = r.cruiseTarget.x - r.x;
+            const dz = r.cruiseTarget.z - r.z;
+            const dist = Math.hypot(dx, dz) || 1;
+            const spd = 15.5;
+            const vx = (dx / dist) * spd * dt;
+            const vz = (dz / dist) * spd * dt;
+            if (world.onRoad(r.x + vx, r.z + vz, 0.8, false)) {
+              r.x += vx;
+              r.z += vz;
+            } else {
+              const nr = world.nearestRoad(r.x + vx, r.z + vz, 1);
+              if (nr) {
+                r.x += (nr[0] - r.x) * 0.45;
+                r.z += (nr[1] - r.z) * 0.45;
+              }
+              if (Math.random() < 0.08) r.cruiseTarget = null;
+            }
+            r.heading = Math.atan2(dx, dz);
+            r.speed = spd;
           }
         } else {
-          r.speed = 0;
-          r.heading = self.heading;
+          // Convoy formation behind/beside leader
+          const sideOffset = idx % 2 === 0 ? -2.2 : 2.2;
+          const backOffset = 4.2 + idx * 2.6;
+          const fx = Math.sin(self.heading);
+          const fz = Math.cos(self.heading);
+          const ux = -fz;
+          const uz = fx;
+          const desiredX = self.x - fx * backOffset + ux * sideOffset;
+          const desiredZ = self.z - fz * backOffset + uz * sideOffset;
+
+          const dx = desiredX - r.x;
+          const dz = desiredZ - r.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 75) {
+            const p = world.nearestRoad(desiredX, desiredZ, 2);
+            if (p) {
+              r.x = p[0];
+              r.z = p[1];
+            }
+          } else if (dist > 1.3) {
+            const spd = Math.min(34, Math.max(4, dist * 2.4));
+            const vx = (dx / dist) * spd * dt;
+            const vz = (dz / dist) * spd * dt;
+            if (world.onRoad(r.x + vx, r.z + vz, 0.8, false)) {
+              r.x += vx;
+              r.z += vz;
+            } else {
+              const nr = world.nearestRoad(r.x + vx, r.z + vz, 1);
+              if (nr) {
+                r.x += (nr[0] - r.x) * 0.4;
+                r.z += (nr[1] - r.z) * 0.4;
+              }
+            }
+            r.heading = Math.atan2(dx, dz);
+            r.speed = spd;
+            r.fuel = Math.max(5, r.fuel - spd * dt * 0.09);
+            if (r.fuel < 35 && !r.lowWarned) {
+              r.lowWarned = true;
+              const helpMsg = "Sắp hết xăng rồi, ai chiết giúp mình với!";
+              if (r.mesh && r.mesh.userData.say) r.mesh.userData.say(helpMsg);
+              speakChat(helpMsg, state.ttsOn, { pitch: r.name.includes("Lan") ? 1.2 : 0.96, voiceIndex: idx + 1 });
+              toast("⛽ " + r.name + ": 'Sắp hết xăng rồi! Lại gần bấm (E) chiết giúp với!'", "var(--acc)");
+            }
+          } else {
+            r.speed = 0;
+            r.heading = self.heading;
+          }
         }
       } else {
         if (now - r.lastSeen > 8000) {
@@ -622,18 +757,32 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
       }
 
       if (r.mesh) {
+        r.mesh.visible = r.mode !== "passenger";
         r.mesh.position.set(r.x, 0, r.z);
         r.mesh.rotation.y = r.heading;
-        if (r.mesh.userData.w1) r.mesh.userData.w1.rotation.x += (r.speed || 0) * dt * 2.2;
-        if (r.mesh.userData.w2) r.mesh.userData.w2.rotation.x += (r.speed || 0) * dt * 2.2;
+        if (r.mesh.userData.spinWheels) r.mesh.userData.spinWheels((r.speed || 0) * dt * 2.2, 0);
         if (r.mesh.userData.updateChat) r.mesh.userData.updateChat(now);
       }
       idx++;
     }
 
-    if (world.me && world.me.userData.updateChat) {
-      world.me.userData.updateChat(now);
+    // Update passenger pose if player is riding with someone
+    if (self.mode === "passenger" && ridingHostId) {
+      const host = remotes.get(ridingHostId);
+      if (host && onUpdatePassenger) {
+        onUpdatePassenger(host);
+      } else if (!host) {
+        ridingHostId = null;
+      }
     }
+
+    // Update pillion mesh on player's motorbike if carrying a teammate
+    if (world.me && world.me.userData.setPillion) {
+      world.me.userData.setPillion(self.mode === "drive" && myPassengerColor !== null, myPassengerColor ?? 0x3ddc97);
+    }
+
+    if (world.me && world.me.userData.updateChat) world.me.userData.updateChat(now);
+    if (world.walker && world.walker.userData.updateChat) world.walker.userData.updateChat(now);
 
     // Broadcast own state at ~12 Hz when in a room
     syncTimer += dt;
@@ -648,6 +797,8 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
         friendCode: profile.friendCode,
         bikeId: bike.id,
         color: bike.color,
+        mode: self.mode || "drive",
+        ridingHostId,
         fuel: +state.fuel.toFixed(1),
         x: +self.x.toFixed(2),
         z: +self.z.toFixed(2),
@@ -686,7 +837,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
       }
     }
 
-    // Update nearby fuel-share button & bot labels every 0.35s
+    // Update nearby fuel-share, ride-mate button & bot labels every 0.35s
     uiTimer += dt;
     if (uiTimer >= 0.35) {
       uiTimer = 0;
@@ -704,6 +855,18 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
           sBtn.textContent = "⛽ Chiết xăng cho " + shareTarget.name + " (-20% → +20%) (E)";
         }
       }
+      const rideTarget = getNearestRideTarget();
+      const rBtn = $("rideMateBtn");
+      if (rBtn) {
+        rBtn.classList.toggle("show", !!rideTarget);
+        if (rideTarget) {
+          rBtn.textContent = "🙋 Ngồi ké xe " + rideTarget.name + " (C)";
+        }
+      }
+      const brBtn = $("botRideBtn");
+      if (brBtn) {
+        brBtn.textContent = botPassengerId ? "🚶 Cho bạn AI xuống xe" : "🙋 Đèo bạn AI cùng xe";
+      }
       if (modal && modal.classList.contains("open")) renderPartyUI();
     }
   }
@@ -719,7 +882,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
       "Đoàn mình chạy đúng luật, giữ tốc độ nhé!",
       "Đường này đẹp ghê, đi phượt quá đã!",
       "Ok luôn bạn ơi, lên ga thôi!",
-      "Nhớ đừng quẹo lên cao tốc kẻo bị phạt đó nha!",
+      "Nhớ đừng quẹo lên cao tốc nếu đi xe máy nha!",
     ];
     return pool[Math.floor(Math.random() * pool.length)];
   }
@@ -727,8 +890,10 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
   function sendChat(rawText) {
     const clean = String(rawText || "").trim().slice(0, 72);
     if (!clean) return;
-    if (world.me && world.me.userData.say) {
-      world.me.userData.say(clean);
+    const self = getSelfState();
+    const activeRig = self.mode === "drive" ? world.me : world.walker;
+    if (activeRig && activeRig.userData.say) {
+      activeRig.userData.say(clean);
     }
     playChatPop(state.soundOn);
     speakChat(clean, state.ttsOn, { pitch: 1.02, rate: 1.06, voiceIndex: 0 });
@@ -743,14 +908,13 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
         city: geo.cityId,
       });
     }
-    // AI teammate banter if any bot is in party
     const bots = [...remotes.values()].filter((r) => r.isBot);
     if (bots.length) {
       const responder = bots[Math.floor(Math.random() * bots.length)];
       const reply = pickAiReply(clean);
       setTimeout(() => {
         if (!remotes.has(responder.id)) return;
-        if (responder.mesh && responder.mesh.userData.say) {
+        if (responder.mesh && responder.mesh.userData.say && responder.mode !== "passenger") {
           responder.mesh.userData.say(reply);
         }
         playChatPop(state.soundOn);
@@ -774,6 +938,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel })
   return {
     update,
     shareFuel,
+    rideWithNearestMate,
     sendChat,
     renderPartyUI,
     getMapSnapshot,
