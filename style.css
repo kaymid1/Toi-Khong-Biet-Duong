@@ -85,6 +85,27 @@ html, body {
 .bar { height: 6px; background: rgba(42, 58, 75, 0.8); border-radius: 4px; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .25s, background .25s; }
 
+#locBar {
+  min-width: 210px;
+  max-width: 340px;
+  padding: 8px 13px;
+}
+#locStreet {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#locSub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--mut);
+  line-height: 1.35;
+}
+#locSub b { color: var(--acc); font-weight: 600; }
+
 #stat {
   font-size: 12px;
   color: var(--mut);
@@ -210,6 +231,51 @@ button.dim { opacity: .55; }
   animation: pl .55s infinite;
 }
 
+/* Live Minimap */
+#minimapWrap {
+  position: fixed;
+  right: 16px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 140px);
+  width: 148px;
+  height: 148px;
+  padding: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(11, 18, 24, 0.88);
+  border: 1.5px solid rgba(130, 160, 190, 0.35);
+  z-index: 2;
+  pointer-events: none;
+}
+#minimapWrap.hide { display: none; }
+#minimap { width: 100%; height: 100%; display: block; }
+.mm-n {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--acc);
+  background: rgba(11, 18, 24, 0.82);
+  padding: 0 5px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 176, 32, 0.35);
+}
+#mmInfo {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  color: #dce9f5;
+  text-shadow: 0 1px 3px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Speedometer + Fuel Ring */
 #speedo {
   position: fixed;
@@ -285,6 +351,8 @@ button.dim { opacity: .55; }
   #pad:hover { opacity: 0.95; }
 }
 @media (max-width: 600px) {
+  #locBar { order: 3; max-width: none; width: 100%; }
+  #minimapWrap { width: 108px; height: 108px; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 216px); }
   #speedo { width: 92px; height: 92px; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 115px); }
   #spdVal { font-size: 21px; }
   #pad { right: 10px; }
@@ -404,6 +472,7 @@ button.dim { opacity: .55; }
 }
 #m:active { cursor: grabbing; }
 path { vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.water { fill: #0d2b40; stroke: #184969; stroke-width: 1; pointer-events: none; }
 .bg { stroke: #2e3f50; stroke-width: 1; }
 .rs { stroke: #1d2a37; stroke-width: .7; display: none; }
 .st { stroke: #6d859c; stroke-width: 2; }
@@ -422,7 +491,7 @@ path { vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; str
   pointer-events: none;
 }
 .lb.on { opacity: 1; }
-.lm-dot { fill: var(--acc); stroke: #0b1218; stroke-width: 1.2; pointer-events: none; }
+.lm-dot { fill: var(--acc); stroke: #0b1218; stroke-width: 1.1; pointer-events: none; }
 .lm-tx {
   fill: var(--acc);
   font-size: calc(var(--fs, 10px) * .95);
@@ -435,7 +504,7 @@ path { vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; str
 .gs-dot { fill: #3ddc97; stroke: #0b1218; stroke-width: 1; pointer-events: none; }
 .hw { stroke: #ff5d73; stroke-width: 2.2; stroke-dasharray: 5 4; opacity: 0.85; }
 .trunk { stroke: #f5b82e; stroke-width: 2.4; opacity: 0.9; }
-.wp-dot { fill: rgba(61, 220, 151, 0.25); stroke: #3ddc97; stroke-width: 1.5; pointer-events: none; }
+.wp-dot { fill: rgba(61, 220, 151, 0.25); stroke: #3ddc97; stroke-width: 1.4; pointer-events: none; }
 .wp-tx {
   fill: #3ddc97;
   font-size: calc(var(--fs, 10px) * 1);
@@ -445,8 +514,9 @@ path { vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; str
   stroke-width: calc(var(--fs, 10px) * .32);
   pointer-events: none;
 }
-.me-dot { fill: #ffffff; stroke: #1e88e5; stroke-width: 1.5; pointer-events: none; }
-.mate-dot { fill: #4fc3f7; stroke: #0b1218; stroke-width: 1.1; pointer-events: none; }
+.me-ring { fill: rgba(30, 136, 229, 0.24); stroke: #4fc3f7; stroke-width: 1.2; pointer-events: none; }
+.me-arrow { fill: #ffffff; stroke: #1e88e5; stroke-width: 1.1; pointer-events: none; }
+.mate-dot { fill: #4fc3f7; stroke: #0b1218; stroke-width: 1; pointer-events: none; }
 .mate-tx {
   fill: #4fc3f7;
   font-size: calc(var(--fs, 10px) * .9);

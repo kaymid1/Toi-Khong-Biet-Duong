@@ -1,6 +1,6 @@
-import { profile, state, BIKES, saveProfile, getActiveBike, toast, geo, $ } from "./state.js";
-import { createPartyRiderRig } from "./models.js";
-import { playRefuel, playSuccess, playDiscover, playChatPop, speakChat } from "./audio.js";
+import { profile, state, BIKES, saveProfile, getActiveBike, toast, geo, $ } from "./state.js?v=3";
+import { createPartyRiderRig } from "./models.js?v=3";
+import { playRefuel, playSuccess, playDiscover, playChatPop, speakChat } from "./audio.js?v=3";
 
 const BC_NAME = "kbd_party_v1";
 const PEER_PREFIX = "kbd-phut-";
@@ -729,7 +729,7 @@ export function initParty({ world, R0, LANDMARKS, getSelfState, onReceiveFuel, o
             }
             r.heading = Math.atan2(dx, dz);
             r.speed = spd;
-            r.fuel = Math.max(5, r.fuel - spd * dt * 0.09);
+            r.fuel = Math.max(5, r.fuel - spd * dt * 0.022);
             if (r.fuel < 35 && !r.lowWarned) {
               r.lowWarned = true;
               const helpMsg = "Sắp hết xăng rồi, ai chiết giúp mình với!";

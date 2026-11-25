@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=3">
 </head>
 <body>
   <div id="loader">Đang tải bản đồ…</div>
@@ -25,6 +25,11 @@
         <div class="blbl"><span>XP</span><span id="xpLbl">0%</span></div>
         <div class="bar"><i id="xp"></i></div>
       </div>
+    </div>
+
+    <div id="locBar" class="card" aria-live="polite">
+      <div id="locStreet">📍 Đang xác định vị trí…</div>
+      <div id="locSub">Đang tải bản đồ khu vực…</div>
     </div>
 
     <div id="stat" class="card">
@@ -61,6 +66,12 @@
     </div>
   </div>
 
+  <div id="minimapWrap" class="card" aria-label="Bản đồ thu nhỏ">
+    <canvas id="minimap" width="296" height="296"></canvas>
+    <span class="mm-n">B</span>
+    <div id="mmInfo"></div>
+  </div>
+
   <div id="speedo" aria-label="Đồng hồ tốc độ và xăng">
     <svg viewBox="0 0 120 120" class="sp-svg">
       <circle cx="60" cy="60" r="52" class="sp-track" />
@@ -87,6 +98,7 @@
         <div class="zbtns">
           <button id="zi" title="Phóng to">+</button>
           <button id="zo" title="Thu nhỏ">−</button>
+          <button id="zm" title="Về vị trí hiện tại">📍 Tôi</button>
           <button id="zr" title="Toàn cảnh">⟲</button>
           <button id="resetBtn" title="Chơi lại khu vực này">↺ Reset</button>
           <button id="x">Đóng</button>
@@ -172,7 +184,11 @@
       </div>
       <div class="set-row">
         <span>Gợi ý tên đường trên HUD</span>
-        <button id="hintBtn">👁️ TẮT (H)</button>
+        <button id="hintBtn">👁️ BẬT (H)</button>
+      </div>
+      <div class="set-row">
+        <span>Bản đồ nhỏ (Minimap)</span>
+        <button id="mmBtn">🗺️ BẬT (N)</button>
       </div>
       <div class="set-row">
         <span>Âm thanh động cơ &amp; còi</span>
@@ -188,7 +204,7 @@
         • <b>Đi phượt đường dài:</b> Sử dụng tuyến <b>Quốc lộ (vạch vàng đậm)</b> và đường ven biển, giữ tốc độ giới hạn (30–70 km/h tùy cấp đường).
       </div>
       <div class="set-help">
-        <b>Phím tắt:</b> WASD / Mũi tên: Lái · Shift: Tăng tốc · Space: Còi · T: Tablet · B: Thưởng &amp; Sổ tay · P: Phượt/Bạn bè · E: Chiết xăng · G: Garage · F: Đổ xăng · R: Về đường
+        <b>Phím tắt:</b> WASD / Mũi tên: Lái · Shift: Tăng tốc · Space: Còi · T: Tablet · N: Minimap · B: Thưởng &amp; Sổ tay · P: Phượt/Bạn bè · E: Chiết xăng · G: Garage · F: Đổ xăng · R: Về đường
       </div>
     </div>
   </div>
@@ -209,6 +225,6 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
-  <script type="module" src="./js/main.js"></script>
+  <script type="module" src="./js/main.js?v=3"></script>
 </body>
 </html>

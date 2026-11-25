@@ -79,6 +79,31 @@ export function makeFacadeTexture(variant = 0) {
   return tex;
 }
 
+export function makeShopSignTexture(variant = 0) {
+  const specs = [
+    { bg: "#b71c1c", fg: "#ffd54f", txt: "PHỞ · BÚN BÒ" },
+    { bg: "#1b5e20", fg: "#ffffff", txt: "CÀ PHÊ ĐÁ" },
+    { bg: "#0d47a1", fg: "#fff59d", txt: "TẠP HÓA 24H" },
+    { bg: "#4a148c", fg: "#80cbc4", txt: "NHÀ THUỐC" },
+  ];
+  const sp = specs[variant % specs.length];
+  const cv = document.createElement("canvas");
+  cv.width = 256;
+  cv.height = 64;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = sp.bg;
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.strokeStyle = sp.fg;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 248, 56);
+  ctx.fillStyle = sp.fg;
+  ctx.font = "bold 26px 'Be Vietnam Pro',system-ui,sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(sp.txt, 128, 33);
+  return new THREE.CanvasTexture(cv);
+}
+
 export function makeBlobShadowTexture() {
   const cv = document.createElement("canvas");
   cv.width = 128;
@@ -686,41 +711,129 @@ function createChatBubbleHelper(rig, baseY = 2.65) {
 
 export function createNpcMesh(index) {
   const p = new THREE.Group();
+  const body = new THREE.Group();
   const shirt = mat(new THREE.Color().setHSL((index * 0.17) % 1, 0.55, 0.5));
   const pants = mat(0x2b3642);
   const skin = mat(0xf0c29c);
 
-  const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.72, 8), pants);
-  legs.position.y = 0.36;
-  legs.castShadow = true;
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.56, 0.14), pants);
+  legL.position.set(-0.09, 0.28, 0);
+  legL.castShadow = true;
+  const legR = legL.clone();
+  legR.position.x = 0.09;
 
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 0.62, 8), shirt);
-  torso.position.y = 1.02;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.52, 0.22), shirt);
+  torso.position.y = 0.84;
   torso.castShadow = true;
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 8), skin);
-  head.position.y = 1.48;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), skin);
+  head.position.y = 1.3;
   head.castShadow = true;
 
-  p.add(legs, torso, head);
+  body.add(legL, legR, torso, head);
 
   // Every other NPC wears a traditional Vietnamese nón lá (conical hat)
   if (index % 2 === 0) {
-    const nonLa = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.2, 12), mat(0xe6cf9a));
-    nonLa.position.y = 1.63;
+    const nonLa = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.19, 12), mat(0xe6cf9a));
+    nonLa.position.y = 1.44;
     nonLa.castShadow = true;
-    p.add(nonLa);
+    body.add(nonLa);
   } else {
     const hair = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.SphereGeometry(0.175, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
       mat(0x1c1c1e)
     );
-    hair.position.y = 1.5;
-    p.add(hair);
+    hair.position.y = 1.32;
+    body.add(hair);
+  }
+  p.add(body);
+
+  let phase = index * 1.1;
+  function animateWalk(speed, dt) {
+    if (Math.abs(speed) > 0.15) {
+      phase += dt * Math.abs(speed) * 2.8;
+      const swing = Math.sin(phase) * 0.48;
+      legL.rotation.x = swing;
+      legR.rotation.x = -swing;
+      body.position.y = Math.abs(Math.cos(phase)) * 0.035;
+    } else {
+      legL.rotation.x *= 0.8;
+      legR.rotation.x *= 0.8;
+      body.position.y *= 0.8;
+    }
   }
 
+  p.userData.npcType = "ped";
   p.userData.t = new THREE.Vector3();
+  p.userData.animateWalk = animateWalk;
   return p;
+}
+
+export function createNpcBikeMesh(index) {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+
+  const bikeColors = [0xd32f2f, 0x1976d2, 0xf5f5f5, 0x2e7d32, 0xf9a825, 0x37474f];
+  const shirtColors = [0x26a69a, 0x42a5f5, 0xff7043, 0xab47bc, 0x66bb6a, 0xec407a];
+  const bikeMat = mat(bikeColors[index % bikeColors.length]);
+  const darkMat = mat(0x1f262e);
+  const metalMat = mat(0x9aa6b2);
+  const shirtMat = mat(shirtColors[(index + 2) % shirtColors.length]);
+  const helmetMat = mat(index % 3 === 0 ? 0xf5b82e : index % 3 === 1 ? 0xffffff : 0x1e88e5);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.14, 10);
+  const wF = new THREE.Mesh(wheelGeo, darkMat);
+  wF.rotation.z = Math.PI / 2;
+  wF.position.set(0, 0.3, 0.64);
+  wF.castShadow = true;
+  const wR = wF.clone();
+  wR.position.z = -0.62;
+
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.28, 1.15), bikeMat);
+  frame.position.set(0, 0.5, -0.04);
+  frame.castShadow = true;
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.46, 0.14), mat(0xedeae4));
+  shield.position.set(0, 0.52, 0.36);
+  shield.rotation.x = 0.2;
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.64), darkMat);
+  seat.position.set(0, 0.74, -0.2);
+  const hbar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.58, 6), darkMat);
+  hbar.rotation.z = Math.PI / 2;
+  hbar.position.set(0, 0.96, 0.46);
+  const headLamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.06), new THREE.MeshBasicMaterial({ color: 0xfff3c4 }));
+  headLamp.position.set(0, 0.88, 0.56);
+  const tailLamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.06), new THREE.MeshBasicMaterial({ color: 0xd32f2f }));
+  tailLamp.position.set(0, 0.66, -0.74);
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.5, 0.22), shirtMat);
+  torso.position.set(0, 1.14, -0.14);
+  torso.rotation.x = 0.16;
+  torso.castShadow = true;
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.44, 0.18), darkMat);
+  legs.position.set(0, 0.72, 0.02);
+  legs.rotation.x = -0.3;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), mat(0xf0c29c));
+  head.position.set(0, 1.52, -0.07);
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.185, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    helmetMat
+  );
+  helmet.position.set(0, 1.54, -0.07);
+  helmet.castShadow = true;
+
+  const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.72, 6), metalMat);
+  exhaust.rotation.x = Math.PI / 2;
+  exhaust.position.set(0.17, 0.28, -0.34);
+
+  body.add(wF, wR, frame, shield, seat, hbar, headLamp, tailLamp, torso, legs, head, helmet, exhaust);
+  root.userData.npcType = "bike";
+  root.userData.t = new THREE.Vector3();
+  root.userData.spinWheels = (da) => {
+    wF.rotation.x += da;
+    wR.rotation.x += da;
+  };
+  return root;
 }
 
 export function createGasStationMesh(st, makeBillboard) {
@@ -767,22 +880,90 @@ export function createGasStationMesh(st, makeBillboard) {
 
 export function createLandmarkMesh(lm, makeBillboard) {
   const gLm = new THREE.Group();
-  if (lm.type === "bridge" || lm.type === "bridge2") {
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(32, 1.2, 6), mat(0x546e7a));
-    deck.position.y = 2.2;
-    deck.castShadow = true;
-    const arch = new THREE.Mesh(
-      new THREE.TorusGeometry(14, 1.15, 8, 22, Math.PI),
-      mat(lm.type === "bridge" ? 0xffb020 : 0x4fc3f7)
-    );
-    arch.position.y = 2.5;
-    arch.castShadow = true;
-    gLm.add(deck, arch);
+  if (lm.type === "bridge") {
+    // Cầu Rồng: chuỗi vòm thân rồng vàng uốn lượn dọc cầu + đầu rồng phía Đông
+    const goldMat = new THREE.MeshLambertMaterial({ color: 0xffb300, emissive: 0x5c3800 });
+    const bellyMat = mat(0xffe082);
+    for (const [zOff, rad, yBase] of [
+      [-42, 16, 4],
+      [0, 21, 5],
+      [42, 16, 4],
+    ]) {
+      const arch = new THREE.Mesh(new THREE.TorusGeometry(rad, 1.55, 8, 22, Math.PI), goldMat);
+      arch.rotation.y = Math.PI / 2;
+      arch.position.set(0, yBase, zOff);
+      arch.castShadow = true;
+      const rib = new THREE.Mesh(new THREE.TorusGeometry(rad - 1.1, 0.55, 6, 18, Math.PI), bellyMat);
+      rib.rotation.y = Math.PI / 2;
+      rib.position.set(0, yBase, zOff);
+      gLm.add(arch, rib);
+    }
+    // Đầu rồng vàng đặc trưng
+    const head = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.2, 6.2), goldMat);
+    head.position.set(0, 14.5, 59);
+    head.rotation.x = -0.22;
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.8, 3.4), goldMat);
+    snout.position.set(0, 15.2, 63.2);
+    const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.2, 6), bellyMat);
+    hornL.position.set(-1.1, 17.2, 57.5);
+    hornL.rotation.x = -0.5;
+    const hornR = hornL.clone();
+    hornR.position.x = 1.1;
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff3d00 });
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.42, 6, 6), eyeMat);
+    eyeL.position.set(-1.5, 15.6, 61);
+    const eyeR = eyeL.clone();
+    eyeR.position.x = 1.5;
+    gLm.add(head, snout, hornL, hornR, eyeL, eyeR);
+
+    // Đuôi rồng phía Tây
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(1.8, 8.5, 6), goldMat);
+    tail.position.set(0, 11.5, -59);
+    tail.rotation.x = -Math.PI / 3;
+    gLm.add(tail);
+
+    const pierGeo = new THREE.BoxGeometry(1.5, 7, 2.4);
+    const pierMat = mat(0x546e7a);
+    for (const sx of [-11.5, 11.5]) {
+      for (const sz of [-42, 0, 42]) {
+        const pr = new THREE.Mesh(pierGeo, pierMat);
+        pr.position.set(sx, 3.5, sz);
+        pr.castShadow = true;
+        gLm.add(pr);
+      }
+    }
+  } else if (lm.type === "bridge2") {
+    // Cầu Sông Hàn: tháp dây văng trung tâm + vòm xanh lam
+    const towerMat = mat(0xe8eef5);
+    const cableMat = mat(0x4fc3f7);
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(2.2, 30, 2.6), towerMat);
+    tower.position.set(0, 15, 0);
+    tower.castShadow = true;
+    const topCap = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4.5, 4), cableMat);
+    topCap.position.set(0, 31.5, 0);
+    topCap.rotation.y = Math.PI / 4;
+    gLm.add(tower, topCap);
+    for (const sz of [-24, -14, 14, 24]) {
+      const stay = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 29, 6), cableMat);
+      stay.position.set(0, 15, sz * 0.52);
+      stay.rotation.x = sz > 0 ? -0.68 : 0.68;
+      gLm.add(stay);
+    }
   } else if (lm.type === "cable") {
-    const tw = new THREE.Mesh(new THREE.ConeGeometry(3, 28, 4), mat(0xe8eef5));
-    tw.position.y = 14;
-    tw.castShadow = true;
-    gLm.add(tw);
+    // A-frame cable-stayed bridge pylon straddling outside the roadway
+    const legGeo = new THREE.BoxGeometry(1.4, 30, 1.8);
+    const pylonMat = mat(0xe8eef5);
+    const legL = new THREE.Mesh(legGeo, pylonMat);
+    legL.position.set(-5.6, 14, 0);
+    legL.rotation.z = -0.34;
+    legL.castShadow = true;
+    const legR = new THREE.Mesh(legGeo, pylonMat);
+    legR.position.set(5.6, 14, 0);
+    legR.rotation.z = 0.34;
+    legR.castShadow = true;
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.4, 7, 6), pylonMat);
+    crown.position.y = 29;
+    gLm.add(legL, legR, crown);
   } else if (lm.type === "airport") {
     const tw = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.2, 22, 8), mat(0x90a4ae));
     tw.position.y = 11;
@@ -797,17 +978,18 @@ export function createLandmarkMesh(lm, makeBillboard) {
     pl.position.y = 4.5;
     gLm.add(umb, pl);
   } else {
-    const hall = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 12), mat(0xe3b8a6));
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(14, 8, 10), mat(0xe3b8a6));
     hall.position.y = 4;
     hall.castShadow = true;
-    const rf = new THREE.Mesh(new THREE.ConeGeometry(12, 5, 4), mat(0xb71c1c));
+    const rf = new THREE.Mesh(new THREE.ConeGeometry(10.5, 5, 4), mat(0xb71c1c));
     rf.position.y = 10.5;
     rf.rotation.y = Math.PI / 4;
     rf.castShadow = true;
     gLm.add(hall, rf);
   }
   const sp = makeBillboard("★ " + lm.name, "#131d29dd", "#ffb020", "bold 24px 'Be Vietnam Pro',system-ui");
-  sp.position.y = 29;
+  sp.position.y = 33;
+  sp.scale.set(17, 4.25, 1);
   gLm.add(sp);
   return gLm;
 }

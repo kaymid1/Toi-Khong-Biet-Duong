@@ -1,5 +1,5 @@
-import { state, saveProfile, getActiveBike, toast, geo, $ } from "./state.js";
-import { playRefuel, playHorn, playError } from "./audio.js";
+import { state, saveProfile, getActiveBike, toast, geo, $ } from "./state.js?v=3";
+import { playRefuel, playHorn, playError } from "./audio.js?v=3";
 
 export function createDriving({ world, keys, isModalOpen, rewards }) {
   const { me, parkedVehicle, walker, cam, ground, npcs, stations, stream, onRoad, roadInfoAt, nearestRoad, scatter } =
@@ -155,7 +155,7 @@ export function createDriving({ world, keys, isModalOpen, rewards }) {
   }
 
   function refuel() {
-    const nearSt = stations.some((st) => Math.hypot(st.x - me.position.x, st.z - me.position.z) < 11);
+    const nearSt = stations.some((st) => Math.hypot(st.x - me.position.x, st.z - me.position.z) < 15);
     if (!nearSt) return;
     if (state.fuel >= 99) {
       toast("Bình xăng đã đầy!", "var(--ok)");
@@ -177,12 +177,7 @@ export function createDriving({ world, keys, isModalOpen, rewards }) {
   function honk() {
     if (mode !== "drive") return;
     playHorn(state.soundOn, getActiveBike());
-    npcs.forEach((n) => {
-      if (n.position.distanceTo(me.position) < 14) {
-        const p = nearestRoad(n.position.x + (Math.random() - 0.5) * 14, n.position.z + (Math.random() - 0.5) * 14, 1);
-        if (p) n.userData.t.set(p[0], 0, p[1]);
-      }
-    });
+    if (world.onHonk) world.onHonk(me.position);
   }
 
   {
@@ -245,7 +240,7 @@ export function createDriving({ world, keys, isModalOpen, rewards }) {
       }
 
       if (Math.abs(speed) > 0.2 && !outOfFuel) {
-        state.fuel = Math.max(0, state.fuel - Math.abs(speed) * dt * (boost ? 0.22 : 0.11) * bike.fuelMult);
+        state.fuel = Math.max(0, state.fuel - Math.abs(speed) * dt * (boost ? 0.012 : 0.007) * bike.fuelMult);
         if (state.fuel <= 0 && !lowFuelWarned) {
           lowFuelWarned = true;
           toast("Hết xăng! Dắt xe tới cây xăng ⛽ gần nhất hoặc nhờ bạn chiết xăng", "var(--bad)");
@@ -331,29 +326,7 @@ export function createDriving({ world, keys, isModalOpen, rewards }) {
     if (world.updateSunTarget) world.updateSunTarget(me.position.x, me.position.z);
     stream(me.position.x, me.position.z);
 
-    npcs.forEach((n) => {
-      if (n.position.distanceTo(me.position) > 130) scatter(n);
-      _v1.copy(n.userData.t).sub(n.position);
-      if (_v1.length() < 1) {
-        const p = nearestRoad(
-          n.position.x + (Math.random() - 0.5) * 60,
-          n.position.z + (Math.random() - 0.5) * 60,
-          1
-        );
-        if (p) n.userData.t.set(p[0], 0, p[1]);
-      } else {
-        _v1.normalize();
-        const nx = n.position.x + _v1.x * 2.2 * dt;
-        const nz = n.position.z + _v1.z * 2.2 * dt;
-        if (onRoad(nx, nz, 0.9)) {
-          n.position.x = nx;
-          n.position.z = nz;
-          n.rotation.y = Math.atan2(_v1.x, _v1.z);
-        } else {
-          n.userData.t.copy(n.position);
-        }
-      }
-    });
+    if (world.updateNpcs) world.updateNpcs(dt, me.position);
 
     const camDist = mode === "walk" ? 7.2 : (isCar ? 13.0 : 11.0) + Math.min(5, Math.abs(speed) * 0.1);
     const camH = mode === "walk" ? 4.2 : (isCar ? 7.2 : 6.6) + Math.min(2, Math.abs(speed) * 0.04);

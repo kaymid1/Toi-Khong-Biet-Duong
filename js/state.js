@@ -1,5 +1,5 @@
 export const RANK = ["Mù đường", "Biết đường", "Thổ địa", "Xe ôm Pro"];
-export const WD = [14, 12, 10, 8, 6, 4.5, 4, 3];
+export const WD = [18, 16, 14, 11.5, 9, 7, 6, 4.8];
 
 export const $ = (id) => document.getElementById(id);
 
@@ -16,7 +16,7 @@ export const BIKES = [
     maxSpd: 21,
     boostSpd: 36,
     accel: 24,
-    fuelMult: 0.85,
+    fuelMult: 0.75,
     engineBase: 50,
     enginePitch: 2.3,
     hornFreq: [520, 520],
@@ -34,7 +34,7 @@ export const BIKES = [
     maxSpd: 24,
     boostSpd: 42,
     accel: 28,
-    fuelMult: 1.0,
+    fuelMult: 0.85,
     engineBase: 44,
     enginePitch: 2.0,
     hornFreq: [440, 554],
@@ -52,7 +52,7 @@ export const BIKES = [
     maxSpd: 27,
     boostSpd: 48,
     accel: 34,
-    fuelMult: 1.15,
+    fuelMult: 1.0,
     engineBase: 58,
     enginePitch: 2.8,
     hornFreq: [415, 495],
@@ -70,7 +70,7 @@ export const BIKES = [
     maxSpd: 32,
     boostSpd: 58,
     accel: 42,
-    fuelMult: 1.45,
+    fuelMult: 1.2,
     engineBase: 38,
     enginePitch: 3.1,
     hornFreq: [310, 390],
@@ -88,7 +88,7 @@ export const BIKES = [
     maxSpd: 34,
     boostSpd: 54,
     accel: 32,
-    fuelMult: 1.6,
+    fuelMult: 1.15,
     engineBase: 34,
     enginePitch: 1.7,
     hornFreq: [350, 440],
@@ -106,7 +106,7 @@ export const BIKES = [
     maxSpd: 38,
     boostSpd: 64,
     accel: 38,
-    fuelMult: 1.85,
+    fuelMult: 1.3,
     engineBase: 30,
     enginePitch: 1.9,
     hornFreq: [290, 365],
@@ -212,7 +212,8 @@ export const state = {
   set money(v) { profile.money = v; },
   fuel: 100,
   combo: 0,
-  hudHint: false,
+  hudHint: true,
+  minimapOn: true,
   soundOn: false,
   ttsOn: true,
   learned: new Set(),

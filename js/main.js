@@ -11,14 +11,14 @@ import {
   saveProfile,
   toast,
   $,
-} from "./state.js";
-import { setSoundEnabled, updateEngineSound, playSuccess, stopSpeech } from "./audio.js";
-import { initWorld3D, dseg } from "./world3d.js";
-import { initTablet } from "./tablet.js";
-import { createDriving } from "./driving.js";
-import { initPerf } from "./perf.js";
-import { initRewards } from "./rewards.js";
-import { initParty } from "./party.js";
+} from "./state.js?v=3";
+import { setSoundEnabled, updateEngineSound, playSuccess, stopSpeech } from "./audio.js?v=3";
+import { initWorld3D } from "./world3d.js?v=3";
+import { initTablet } from "./tablet.js?v=3";
+import { createDriving } from "./driving.js?v=3";
+import { initPerf } from "./perf.js?v=3";
+import { initRewards } from "./rewards.js?v=3";
+import { initParty } from "./party.js?v=3";
 
 function compassDir(heading) {
   // heading = 0 là +Z (Nam), PI là -Z (Bắc), +PI/2 là +X (Đông)
@@ -62,11 +62,33 @@ async function boot() {
   $("tabTitle").textContent = "Bản đồ " + geo.cityName;
 
   const findRoadMid = (q) => {
-    const r = R0.find((x) => x.n && x.n.toLowerCase().includes(q.toLowerCase()));
-    if (!r) return null;
-    const m = Math.floor(r.p.length / 4) * 2;
-    return [r.p[m], r.p[m + 1]];
+    const matches = R0.filter((x) => x.n && x.n.toLowerCase().includes(q.toLowerCase()) && x.p.length >= 4);
+    if (!matches.length) return null;
+    // Chọn đoạn dài nhất để điểm neo (nhất là các cây cầu) nằm đúng giữa thân cầu
+    let bestR = matches[0];
+    let bestSpan = 0;
+    for (const r of matches) {
+      const span = Math.hypot(r.p[r.p.length - 2] - r.p[0], r.p[r.p.length - 1] - r.p[1]);
+      if (span > bestSpan) {
+        bestSpan = span;
+        bestR = r;
+      }
+    }
+    if (bestR.p.length === 4) {
+      return [(bestR.p[0] + bestR.p[2]) / 2, (bestR.p[1] + bestR.p[3]) / 2];
+    }
+    const m = Math.floor(bestR.p.length / 4) * 2;
+    return [bestR.p[m], bestR.p[m + 1]];
   };
+
+  const WATER = meta.water || [];
+  const waterWorld = WATER.map((w) => {
+    const pts = [];
+    for (let j = 0; j + 1 < w.p.length; j += 2) {
+      pts.push([w.p[j] * geo.UX, -w.p[j + 1] * geo.UZ]);
+    }
+    return pts;
+  });
 
   const LANDMARKS = (meta.landmarks || []).map((d) => {
     const p = d.roadQuery ? findRoadMid(d.roadQuery) : null;
@@ -85,7 +107,7 @@ async function boot() {
     }
   }
 
-  const world = initWorld3D({ R0, LANDMARKS, REAL_STATIONS });
+  const world = initWorld3D({ R0, LANDMARKS, REAL_STATIONS, WATER });
   const initBike = getActiveBike();
   world.setBikeModel(initBike.id, initBike.color);
 
@@ -101,12 +123,14 @@ async function boot() {
     R0,
     SEEDS,
     LANDMARKS,
+    WATER,
     stations: world.stations,
     getSpeed: () => (drivingRef ? drivingRef.getSpeed() : 0),
     setSpeed: (v) => {
       if (drivingRef) drivingRef.setSpeed(v);
     },
     getMode: () => (drivingRef ? drivingRef.getMode() : "drive"),
+    getHeading: () => (drivingRef ? drivingRef.getHeading() : 0),
     rewards,
   });
   tabletRef = tablet;
@@ -285,6 +309,11 @@ async function boot() {
     state.hudHint = !state.hudHint;
     $("hintBtn").textContent = (state.hudHint ? "👁️ BẬT" : "👁️ TẮT") + " (H)";
   };
+  $("mmBtn").onclick = () => {
+    state.minimapOn = !state.minimapOn;
+    $("mmBtn").textContent = (state.minimapOn ? "🗺️ BẬT" : "🗺️ TẮT") + " (N)";
+    $("minimapWrap")?.classList.toggle("hide", !state.minimapOn);
+  };
   $("sndBtn").onclick = () => {
     state.soundOn = !state.soundOn;
     setSoundEnabled(state.soundOn);
@@ -366,6 +395,7 @@ async function boot() {
     if (k === "r") drivingRef.reposition();
     if (k === "f") drivingRef.refuel();
     if (k === "h") $("hintBtn").click();
+    if (k === "n") $("mmBtn").click();
     if (k === "m") $("sndBtn").click();
     if (e.code === "Space") {
       e.preventDefault();
@@ -389,6 +419,180 @@ async function boot() {
 
   $("loader").classList.add("hide");
 
+  const mmCanvas = $("minimap");
+  const mmCtx = mmCanvas ? mmCanvas.getContext("2d") : null;
+  let mmAcc = 0;
+
+  function drawMinimap(mx, mz, heading, locCtx, partySnap) {
+    if (!mmCtx || !state.minimapOn) return;
+    const W = mmCanvas.width;
+    const H = mmCanvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const radiusM = 210;
+    const scale = W / (2 * radiusM);
+
+    mmCtx.fillStyle = "#0b1218";
+    mmCtx.fillRect(0, 0, W, H);
+
+    // Sông Hàn & Biển trên minimap
+    if (waterWorld.length) {
+      mmCtx.fillStyle = "#103954";
+      for (const pts of waterWorld) {
+        if (pts.length < 3) continue;
+        mmCtx.beginPath();
+        mmCtx.moveTo(cx + (pts[0][0] - mx) * scale, cy + (pts[0][1] - mz) * scale);
+        for (let i = 1; i < pts.length; i++) {
+          mmCtx.lineTo(cx + (pts[i][0] - mx) * scale, cy + (pts[i][1] - mz) * scale);
+        }
+        mmCtx.closePath();
+        mmCtx.fill();
+      }
+    }
+
+    const chX = Math.floor(mx / world.CH);
+    const chZ = Math.floor(mz / world.CH);
+    const drawn = new Set();
+    const bucket = { bg: [], main: [], trunk: [], hw: [], learned: [], cur: [] };
+
+    for (let a = -2; a <= 2; a++) {
+      for (let b = -2; b <= 2; b++) {
+        const L = world.cell.get(chX + a + "," + (chZ + b));
+        if (!L) continue;
+        for (const s of L) {
+          if (drawn.has(s)) continue;
+          drawn.add(s);
+          const r = R0[s[5]];
+          const x1 = cx + (s[0] - mx) * scale;
+          const y1 = cy + (s[1] - mz) * scale;
+          const x2 = cx + (s[2] - mx) * scale;
+          const y2 = cy + (s[3] - mz) * scale;
+          if (Math.max(x1, x2) < -20 || Math.min(x1, x2) > W + 20 || Math.max(y1, y2) < -20 || Math.min(y1, y2) > H + 20) {
+            continue;
+          }
+          const seg2 = [x1, y1, x2, y2];
+          if (r.n && locCtx.street === r.n && state.hudHint) bucket.cur.push(seg2);
+          else if (r.n && state.learned.has(r.n)) bucket.learned.push(seg2);
+          else if (s[6] === 0) bucket.hw.push(seg2);
+          else if (s[6] === 1) bucket.trunk.push(seg2);
+          else if (s[6] <= 3) bucket.main.push(seg2);
+          else bucket.bg.push(seg2);
+        }
+      }
+    }
+
+    const strokeSegs = (arr, color, width, dash = []) => {
+      if (!arr.length) return;
+      mmCtx.strokeStyle = color;
+      mmCtx.lineWidth = width;
+      mmCtx.setLineDash(dash);
+      mmCtx.beginPath();
+      for (const [x1, y1, x2, y2] of arr) {
+        mmCtx.moveTo(x1, y1);
+        mmCtx.lineTo(x2, y2);
+      }
+      mmCtx.stroke();
+    };
+    mmCtx.lineCap = "round";
+    strokeSegs(bucket.bg, "#223242", 1.8);
+    strokeSegs(bucket.main, "#556d85", 3.4);
+    strokeSegs(bucket.trunk, "#d49c2a", 4.2);
+    strokeSegs(bucket.hw, "#d94f63", 4.2, [6, 5]);
+    strokeSegs(bucket.learned, "#28a873", 4.2);
+    strokeSegs(bucket.cur, "#4fc3f7", 5.2);
+    mmCtx.setLineDash([]);
+
+    // Gas stations
+    for (const st of world.stations) {
+      const sx = cx + (st.x - mx) * scale;
+      const sy = cy + (st.z - mz) * scale;
+      if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
+      mmCtx.fillStyle = "#3ddc97";
+      mmCtx.strokeStyle = "#08120e";
+      mmCtx.lineWidth = 2;
+      mmCtx.beginPath();
+      mmCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+      mmCtx.fill();
+      mmCtx.stroke();
+    }
+
+    // Landmarks (on-map icon + label, or edge pointer for nearest)
+    mmCtx.font = "700 16px 'Be Vietnam Pro',system-ui,sans-serif";
+    mmCtx.textAlign = "center";
+    for (const lm of LANDMARKS) {
+      const lx = cx + (lm.x - mx) * scale;
+      const ly = cy + (lm.z - mz) * scale;
+      if (lx >= 12 && lx <= W - 12 && ly >= 14 && ly <= H - 14) {
+        mmCtx.fillStyle = "#ffb020";
+        mmCtx.strokeStyle = "#0b1218";
+        mmCtx.lineWidth = 3;
+        mmCtx.beginPath();
+        mmCtx.arc(lx, ly, 5.2, 0, Math.PI * 2);
+        mmCtx.fill();
+        mmCtx.stroke();
+        mmCtx.fillStyle = "#ffd680";
+        mmCtx.strokeText("★ " + lm.name, lx, ly - 9);
+        mmCtx.fillText("★ " + lm.name, lx, ly - 9);
+      }
+    }
+
+    // Party waypoint & mates
+    if (partySnap.waypoint) {
+      const wx = cx + (partySnap.waypoint.x - mx) * scale;
+      const wy = cy + (partySnap.waypoint.z - mz) * scale;
+      const ang = Math.atan2(wy - cy, wx - cx);
+      const distPx = Math.hypot(wx - cx, wy - cy);
+      const px = distPx > cx - 14 ? cx + Math.cos(ang) * (cx - 14) : wx;
+      const py = distPx > cy - 14 ? cy + Math.sin(ang) * (cy - 14) : wy;
+      mmCtx.fillStyle = "#3ddc97";
+      mmCtx.strokeStyle = "#ffffff";
+      mmCtx.lineWidth = 2;
+      mmCtx.beginPath();
+      mmCtx.arc(px, py, 5.5, 0, Math.PI * 2);
+      mmCtx.fill();
+      mmCtx.stroke();
+    }
+    for (const m of partySnap.members) {
+      const rx = cx + (m.x - mx) * scale;
+      const ry = cy + (m.z - mz) * scale;
+      if (rx < 0 || rx > W || ry < 0 || ry > H) continue;
+      mmCtx.fillStyle = "#4fc3f7";
+      mmCtx.beginPath();
+      mmCtx.arc(rx, ry, 4, 0, Math.PI * 2);
+      mmCtx.fill();
+    }
+
+    // Player heading cone & arrow
+    mmCtx.save();
+    mmCtx.translate(cx, cy);
+    mmCtx.rotate(-heading);
+    mmCtx.fillStyle = "rgba(79, 195, 247, 0.2)";
+    mmCtx.beginPath();
+    mmCtx.moveTo(0, 0);
+    mmCtx.lineTo(-18, 34);
+    mmCtx.lineTo(18, 34);
+    mmCtx.closePath();
+    mmCtx.fill();
+
+    mmCtx.fillStyle = "#ffffff";
+    mmCtx.strokeStyle = "#1e88e5";
+    mmCtx.lineWidth = 2.5;
+    mmCtx.beginPath();
+    mmCtx.moveTo(0, 11);
+    mmCtx.lineTo(8, -8);
+    mmCtx.lineTo(0, -4);
+    mmCtx.lineTo(-8, -8);
+    mmCtx.closePath();
+    mmCtx.fill();
+    mmCtx.stroke();
+    mmCtx.restore();
+
+    const mmInfo = $("mmInfo");
+    if (mmInfo && locCtx.nearLandmark) {
+      mmInfo.textContent = "★ " + locCtx.nearLandmark.name + " · " + locCtx.nearLandmark.dist + "m";
+    }
+  }
+
   const perf = initPerf({ world, R0, autoBench: new URLSearchParams(location.search).get("bench") === "1" });
   window.__perf = perf;
   window.__world = world;
@@ -396,6 +600,7 @@ async function boot() {
   let fc = 0;
   let ft = 0;
   let near = "—";
+  let lastLocCtx = { street: "—", roadClass: 2, crossStreet: null, crossDist: 0, nearLandmark: null, nearStation: null };
 
   (function loop(now) {
     requestAnimationFrame(loop);
@@ -413,6 +618,12 @@ async function boot() {
     world.renderer.render(world.scene, world.cam);
     perf.frame(now, performance.now() - _r0);
 
+    mmAcc += dt;
+    if (mmAcc >= 0.04) {
+      mmAcc = 0;
+      drawMinimap(world.me.position.x, world.me.position.z, drivingRef.getHeading(), lastLocCtx, partyRef.getMapSnapshot());
+    }
+
     fc++;
     ft += dt;
     if (ft > 0.3) {
@@ -421,18 +632,8 @@ async function boot() {
       ft = 0;
       const mx = world.me.position.x;
       const mz = world.me.position.z;
-      const L = world.cell.get(Math.floor(mx / world.CH) + "," + Math.floor(mz / world.CH)) || [];
-      let bd = 30;
-      near = "—";
-      for (const s of L) {
-        const r = R0[s[5]];
-        if (!r.n) continue;
-        const d = dseg(mx, mz, s);
-        if (d < bd) {
-          bd = d;
-          near = r.n;
-        }
-      }
+      lastLocCtx = world.getLocationContext(mx, mz);
+      near = lastLocCtx.street;
       if (near !== "—") {
         tablet.checkFieldQuest(near);
         tablet.unlockStreetByDrive(near);
@@ -457,7 +658,7 @@ async function boot() {
             : "🏍️ Lên xe (V)";
       }
 
-      const nearSt = world.stations.some((st) => Math.hypot(st.x - mx, st.z - mz) < 11);
+      const nearSt = world.stations.some((st) => Math.hypot(st.x - mx, st.z - mz) < 15);
       const cost = Math.max(1000, Math.round(((100 - state.fuel) * 250) / 1000) * 1000);
       const fb = $("fuelBtn");
       fb.classList.toggle("show", nearSt && state.fuel < 99);
@@ -465,7 +666,36 @@ async function boot() {
 
       const rLim = ROAD_LIMITS[drivingRef.getRoadClass()] || ROAD_LIMITS[2];
       const modeLabel = curMode === "walk" ? "Đi bộ" : curMode === "passenger" ? "Ngồi ké xe bạn" : bike.name;
-      const streetTxt = state.hudHint ? near : "<i>Đọc biển báo ngã tư</i>";
+      const streetTxt = state.hudHint ? (near !== "—" ? near : rLim.label) : "<i>Đọc biển báo ngã tư</i>";
+
+      const locStreetEl = $("locStreet");
+      const locSubEl = $("locSub");
+      if (locStreetEl) {
+        locStreetEl.textContent = state.hudHint
+          ? "📍 " + (near !== "—" ? "Đường " + near : "Khu vực " + rLim.label)
+          : "📍 " + rLim.label + " (Đang ẩn tên đường)";
+      }
+      if (locSubEl) {
+        const parts = [];
+        if (state.hudHint && lastLocCtx.crossStreet) {
+          parts.push("🔀 Gần ngã rẽ <b>" + lastLocCtx.crossStreet + "</b>");
+        }
+        if (state.fuel < 35 && lastLocCtx.nearStation) {
+          parts.push("⛽ Cây xăng: <b>" + lastLocCtx.nearStation.dist + "m " + lastLocCtx.nearStation.dir + "</b>");
+        } else if (lastLocCtx.nearLandmark) {
+          parts.push(
+            "★ Gần <b>" +
+              lastLocCtx.nearLandmark.name +
+              "</b> (" +
+              lastLocCtx.nearLandmark.dist +
+              "m " +
+              lastLocCtx.nearLandmark.dir +
+              ")"
+          );
+        }
+        locSubEl.innerHTML = parts.join(" · ") || rLim.label;
+      }
+
       $("statTxt").innerHTML =
         "Hạng <b style='color:var(--acc)'>" +
         RANK[Math.min(Math.floor(state.xp / 100), 3)] +

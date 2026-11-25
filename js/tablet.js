@@ -1,5 +1,5 @@
-import { state, saveProfile, resetCityProgress, toast, geo, $ } from "./state.js";
-import { playSuccess, playError, playDiscover } from "./audio.js";
+import { state, saveProfile, resetCityProgress, toast, geo, $ } from "./state.js?v=3";
+import { playSuccess, playError, playDiscover } from "./audio.js?v=3";
 
 const NS = "http://www.w3.org/2000/svg";
 const mu = (x) => (((x - geo.minX) / geo.span) * 400).toFixed(1);
@@ -30,7 +30,7 @@ function hint(cx, cy) {
   return "phía " + d;
 }
 
-export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed, getMode, rewards }) {
+export function initTablet({ R0, SEEDS, LANDMARKS, WATER = [], stations, getSpeed, setSpeed, getMode, getHeading, rewards }) {
   const byN = new Map();
   R0.forEach((r, i) => {
     if (r.n && r.c >= 1 && r.c <= 3) {
@@ -66,6 +66,14 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
     g.appendChild(e);
     return e;
   };
+  if (WATER.length) {
+    const wPath = WATER.map((w) => {
+      let s = "M";
+      for (let j = 0; j < w.p.length; j += 2) s += (j ? " L" : "") + mu(w.p[j]) + " " + mv(w.p[j + 1]);
+      return s + " Z";
+    }).join(" ");
+    mkp(wPath, "water");
+  }
   const resEl = mkp(R0.filter((r) => r.c > 5).map(pd).join(""), "rs");
   mkp(R0.filter((r) => r.c >= 2 && r.c <= 5).map(pd).join(""), "bg");
   mkp(R0.filter((r) => r.c === 1).map(pd).join(""), "trunk");
@@ -87,85 +95,146 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
     s.lb = t;
   });
 
+  const scaledMarkers = [];
+  const addScaledCircle = (parent, x, y, r, cls) => {
+    const grp = document.createElementNS(NS, "g");
+    grp.setAttribute("data-x", x);
+    grp.setAttribute("data-y", y);
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", "0");
+    c.setAttribute("cy", "0");
+    c.setAttribute("r", String(r));
+    c.setAttribute("class", cls);
+    grp.appendChild(c);
+    parent.appendChild(grp);
+    scaledMarkers.push(grp);
+    return grp;
+  };
+  const labelOffsets = [];
+
   // Đánh dấu địa danh
   LANDMARKS.forEach((lm) => {
-    const cx = mu(lm.px);
-    const cy = mv(lm.py);
-    const c = document.createElementNS(NS, "circle");
-    c.setAttribute("cx", cx);
-    c.setAttribute("cy", cy);
-    c.setAttribute("r", "2.4");
-    c.setAttribute("class", "lm-dot");
+    const cx = +mu(lm.px);
+    const cy = +mv(lm.py);
+    addScaledCircle(g, cx, cy, 2.5, "lm-dot");
     const tx = document.createElementNS(NS, "text");
-    tx.setAttribute("x", +cx + 3.2);
-    tx.setAttribute("y", +cy + 1);
+    tx.setAttribute("x", (cx + 3.4).toFixed(1));
+    tx.setAttribute("y", (cy + 1).toFixed(1));
     tx.setAttribute("class", "lm-tx");
     tx.textContent = "★ " + lm.name;
-    g.appendChild(c);
     g.appendChild(tx);
+    labelOffsets.push({ el: tx, x: cx, y: cy, dx: 3.6, dy: 1.0 });
   });
 
   // Đánh dấu cây xăng lên tablet để người chơi tìm khi sắp hết xăng
   stations.forEach((st) => {
-    const c = document.createElementNS(NS, "circle");
-    c.setAttribute("cx", mu(st.px));
-    c.setAttribute("cy", mv(st.py));
-    c.setAttribute("r", "1.9");
-    c.setAttribute("class", "gs-dot");
-    g.appendChild(c);
+    addScaledCircle(g, +mu(st.px), +mv(st.py), 2.0, "gs-dot");
   });
 
   const partyLayer = document.createElementNS(NS, "g");
   partyLayer.setAttribute("id", "partyMapLayer");
   g.appendChild(partyLayer);
 
+  let vb = [0, 0, 400, 400];
+  let lastSelfPos = null;
+  function markerScale() {
+    return Math.max(0.14, Math.min(1.0, vb[2] / 360));
+  }
+  function applyMarkerScales() {
+    const ds = markerScale();
+    for (const grp of scaledMarkers) {
+      const x = grp.dataset.x;
+      const y = grp.dataset.y;
+      grp.setAttribute("transform", `translate(${x} ${y}) scale(${ds.toFixed(3)})`);
+    }
+    for (const lo of labelOffsets) {
+      lo.el.setAttribute("x", (lo.x + lo.dx * ds).toFixed(2));
+      lo.el.setAttribute("y", (lo.y + lo.dy * ds).toFixed(2));
+    }
+    for (const grp of partyLayer.querySelectorAll("[data-x]")) {
+      const rot = grp.dataset.rot ? ` rotate(${grp.dataset.rot})` : "";
+      grp.setAttribute("transform", `translate(${grp.dataset.x} ${grp.dataset.y}) scale(${ds.toFixed(3)})${rot}`);
+    }
+    for (const tx of partyLayer.querySelectorAll("[data-lx]")) {
+      tx.setAttribute("x", (+tx.dataset.lx + +tx.dataset.dx * ds).toFixed(2));
+      tx.setAttribute("y", (+tx.dataset.ly + +tx.dataset.dy * ds).toFixed(2));
+    }
+  }
+
   function updatePartyMap(members = [], waypoint = null, selfWorldPos = null) {
+    if (selfWorldPos) lastSelfPos = { x: selfWorldPos.x, z: selfWorldPos.z };
     partyLayer.innerHTML = "";
+    const ds = markerScale();
     if (waypoint) {
-      const wx = mu(waypoint.x / geo.UX);
-      const wy = mv(-waypoint.z / geo.UZ);
+      const wx = +mu(waypoint.x / geo.UX);
+      const wy = +mv(-waypoint.z / geo.UZ);
+      const wGrp = document.createElementNS(NS, "g");
+      wGrp.setAttribute("data-x", wx);
+      wGrp.setAttribute("data-y", wy);
+      wGrp.setAttribute("transform", `translate(${wx} ${wy}) scale(${ds.toFixed(3)})`);
       const ring = document.createElementNS(NS, "circle");
-      ring.setAttribute("cx", wx);
-      ring.setAttribute("cy", wy);
-      ring.setAttribute("r", "4.2");
+      ring.setAttribute("r", "4.0");
       ring.setAttribute("class", "wp-dot");
+      wGrp.appendChild(ring);
+      partyLayer.appendChild(wGrp);
+
       const tx = document.createElementNS(NS, "text");
-      tx.setAttribute("x", +wx + 5);
-      tx.setAttribute("y", +wy + 1);
+      tx.dataset.lx = wx;
+      tx.dataset.ly = wy;
+      tx.dataset.dx = "4.8";
+      tx.dataset.dy = "1";
+      tx.setAttribute("x", (wx + 4.8 * ds).toFixed(2));
+      tx.setAttribute("y", (wy + ds).toFixed(2));
       tx.setAttribute("class", "wp-tx");
       tx.textContent = "🚩 " + waypoint.label;
-      partyLayer.appendChild(ring);
       partyLayer.appendChild(tx);
     }
     if (selfWorldPos) {
-      const sx = mu(selfWorldPos.x / geo.UX);
-      const sy = mv(-selfWorldPos.z / geo.UZ);
-      const meDot = document.createElementNS(NS, "circle");
-      meDot.setAttribute("cx", sx);
-      meDot.setAttribute("cy", sy);
-      meDot.setAttribute("r", "2.6");
-      meDot.setAttribute("class", "me-dot");
-      partyLayer.appendChild(meDot);
+      const sx = +mu(selfWorldPos.x / geo.UX);
+      const sy = +mv(-selfWorldPos.z / geo.UZ);
+      const hdg = getHeading ? getHeading() : 0;
+      const deg = ((-hdg * 180) / Math.PI).toFixed(1);
+      const meGrp = document.createElementNS(NS, "g");
+      meGrp.setAttribute("data-x", sx);
+      meGrp.setAttribute("data-y", sy);
+      meGrp.setAttribute("data-rot", deg);
+      meGrp.setAttribute("transform", `translate(${sx} ${sy}) scale(${ds.toFixed(3)}) rotate(${deg})`);
+      const halo = document.createElementNS(NS, "circle");
+      halo.setAttribute("r", "5.2");
+      halo.setAttribute("class", "me-ring");
+      const arrow = document.createElementNS(NS, "polygon");
+      arrow.setAttribute("points", "0,4.2 3.1,-3.2 0,-1.6 -3.1,-3.2");
+      arrow.setAttribute("class", "me-arrow");
+      meGrp.appendChild(halo);
+      meGrp.appendChild(arrow);
+      partyLayer.appendChild(meGrp);
     }
     members.forEach((m) => {
-      const mx = mu(m.x / geo.UX);
-      const my = mv(-m.z / geo.UZ);
+      const mx = +mu(m.x / geo.UX);
+      const my = +mv(-m.z / geo.UZ);
+      const mGrp = document.createElementNS(NS, "g");
+      mGrp.setAttribute("data-x", mx);
+      mGrp.setAttribute("data-y", my);
+      mGrp.setAttribute("transform", `translate(${mx} ${my}) scale(${ds.toFixed(3)})`);
       const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", mx);
-      c.setAttribute("cy", my);
-      c.setAttribute("r", "2.3");
+      c.setAttribute("r", "2.4");
       c.setAttribute("class", "mate-dot");
+      mGrp.appendChild(c);
+      partyLayer.appendChild(mGrp);
+
       const tx = document.createElementNS(NS, "text");
-      tx.setAttribute("x", +mx + 3.2);
-      tx.setAttribute("y", +my + 1);
+      tx.dataset.lx = mx;
+      tx.dataset.ly = my;
+      tx.dataset.dx = "3.4";
+      tx.dataset.dy = "1";
+      tx.setAttribute("x", (mx + 3.4 * ds).toFixed(2));
+      tx.setAttribute("y", (my + ds).toFixed(2));
       tx.setAttribute("class", "mate-tx");
       tx.textContent = m.name;
-      partyLayer.appendChild(c);
       partyLayer.appendChild(tx);
     });
   }
 
-  let vb = [0, 0, 400, 400];
   function setVB(b) {
     const w = Math.max(22, Math.min(480, b[2]));
     const x = Math.max(-120, Math.min(520 - w, b[0]));
@@ -175,8 +244,17 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
     g.style.setProperty("--fs", (vb[2] / 36).toFixed(2) + "px");
     resEl.style.display = vb[2] < 150 ? "block" : "none";
     $("lvl").textContent = vb[2] > 280 ? "Toàn thành phố" : vb[2] > 120 ? "Khu vực" : "Chi tiết đường";
+    applyMarkerScales();
   }
   setVB(vb);
+
+  function centerOnMe(zoomWidth = null) {
+    if (!lastSelfPos) return;
+    const sx = +mu(lastSelfPos.x / geo.UX);
+    const sy = +mv(-lastSelfPos.z / geo.UZ);
+    const w = zoomWidth || Math.min(vb[2], 110);
+    setVB([sx - w / 2, sy - w / 2, w, w]);
+  }
 
   function zoomBy(factor, cxFrac = 0.5, cyFrac = 0.5) {
     const nw = Math.max(22, Math.min(480, vb[2] * factor));
@@ -184,6 +262,7 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
   }
   $("zi").onclick = () => zoomBy(0.65);
   $("zo").onclick = () => zoomBy(1.45);
+  if ($("zm")) $("zm").onclick = () => centerOnMe();
   $("zr").onclick = () => setVB([0, 0, 400, 400]);
 
   let panning = false;
@@ -222,6 +301,7 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
   let cur = 0;
   let questCount = 0;
   let fieldTarget = null;
+  let isManualReview = false;
   let busy = false;
 
   function renderCombo() {
@@ -255,6 +335,7 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
   }
 
   function nextQuestion() {
+    isManualReview = false;
     questCount++;
     if (rewards && rewards.pickNextStreetIndex) {
       setQuestionByIndex(rewards.pickNextStreetIndex(Q));
@@ -269,34 +350,54 @@ export function initTablet({ R0, SEEDS, LANDMARKS, stations, getSpeed, setSpeed,
   function focusStreet(name) {
     const idx = Q.findIndex((s) => s.n === name);
     if (idx < 0) return;
+    isManualReview = true;
     setQuestionByIndex(idx, true);
-    toast("Đang ôn đường: " + name + " — hãy mở Tablet (T) để chọn trên bản đồ", "var(--acc)");
+    const canEarn = !rewards || !rewards.canEarnReviewReward || rewards.canEarnReviewReward(name);
+    toast(
+      canEarn
+        ? "Đang ôn đường: " + name + " — mở Tablet (T) để chọn trên bản đồ"
+        : "Luyện tập lại: " + name + " (đã nhận thưởng tuyến này trước đó)",
+      "var(--acc)"
+    );
   }
 
-  function completeStreet(s, isField) {
+  const completeStreet = (s, isField) => {
     const firstTime = !state.learned.has(s.n);
+    const canEarn = firstTime || (rewards && rewards.canEarnReviewReward ? rewards.canEarnReviewReward(s.n) : false);
     state.learned.add(s.n);
     s.el.classList.add("learned");
     s.lb.classList.add("on");
-    state.combo++;
-    const bonus = Math.min(30, (state.combo - 1) * 5);
-    const rewardMoney = (isField ? 40000 : firstTime ? 25000 : 10000) + state.combo * 2000;
-    const rewardXp = (isField ? 60 : state.hudHint ? 25 : 40) + bonus;
-    state.xp += rewardXp;
-    state.money += rewardMoney;
-    saveProfile();
-    playSuccess(state.soundOn);
-    toast(
-      (isField ? "Check-in thành công! " : "") +
-        "+" +
-        rewardXp +
-        " XP · +" +
-        rewardMoney.toLocaleString("vi-VN") +
-        "đ",
-      "var(--ok)"
-    );
-    if (rewards) rewards.onQuestComplete(s.n, isField, firstTime);
-  }
+
+    if (canEarn) {
+      state.combo++;
+      const bonus = Math.min(30, (state.combo - 1) * 5);
+      const rewardMoney = (isField ? 40000 : firstTime ? 25000 : 8000) + state.combo * 2000;
+      const rewardXp = (isField ? 60 : firstTime ? (state.hudHint ? 25 : 40) : 15) + bonus;
+      state.xp += rewardXp;
+      state.money += rewardMoney;
+      saveProfile();
+      playSuccess(state.soundOn);
+      toast(
+        (isField ? "Check-in thành công! " : firstTime ? "" : "Ôn tập chuẩn xác! ") +
+          "+" +
+          rewardXp +
+          " XP · +" +
+          rewardMoney.toLocaleString("vi-VN") +
+          "đ",
+        "var(--ok)"
+      );
+    } else {
+      saveProfile();
+      playSuccess(state.soundOn);
+      toast(
+        (isManualReview ? "Luyện tập xong đường " : "Ôn tập xong đường ") +
+          s.n +
+          "! (Đã nhận thưởng trước đó)",
+        "var(--ok)"
+      );
+    }
+    if (rewards) rewards.onQuestComplete(s.n, isField, firstTime, canEarn);
+  };
 
   function unlockStreetByDrive(streetName) {
     if (!streetName || streetName === "—" || state.learned.has(streetName)) return;

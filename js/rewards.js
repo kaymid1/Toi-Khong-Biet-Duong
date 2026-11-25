@@ -1,5 +1,5 @@
-import { profile, state, saveProfile, toast, $ } from "./state.js";
-import { playSuccess } from "./audio.js";
+import { profile, state, saveProfile, toast, $ } from "./state.js?v=3";
+import { playSuccess } from "./audio.js?v=3";
 
 export const ACHIEVEMENTS = [
   { id: "first_street", icon: "🌱", name: "Bước đầu xuống phố", desc: "Thuộc 1 tuyến đường đầu tiên", rewardXp: 20, rewardMoney: 10000, check: () => state.learned.size >= 1 },
@@ -148,17 +148,27 @@ export function initRewards({ getStreets, onFocusStreet }) {
   }
 
   // Ôn tập lặp lại ngắt quãng
-  function recordAnswer(streetName, correct) {
+  function canEarnReviewReward(streetName) {
+    if (!streetName) return false;
+    if (!state.learned.has(streetName)) return true;
+    const m = state.mastery[streetName];
+    if (!m) return true;
+    return (m.nextAt || 0) <= Date.now();
+  }
+
+  function recordAnswer(streetName, correct, countForMastery = true) {
     if (!streetName) return;
     const now = Date.now();
     const cur = state.mastery[streetName] || { ok: 0, wrong: 0, lastAt: 0, nextAt: 0 };
     if (correct) {
-      cur.ok = (cur.ok || 0) + 1;
-      const hours = Math.min(72, Math.pow(2, Math.min(6, cur.ok - 1)));
-      cur.nextAt = now + hours * 3600000;
+      if (countForMastery) {
+        cur.ok = (cur.ok || 0) + 1;
+        const hours = Math.min(72, Math.pow(2, Math.min(6, cur.ok - 1)));
+        cur.nextAt = now + hours * 3600000;
+      }
     } else {
       cur.wrong = (cur.wrong || 0) + 1;
-      cur.nextAt = now; // Đưa vào diện cần ôn lại ngay
+      cur.nextAt = now + 5 * 60000; // Cần ôn lại sau 5 phút nếu làm sai (tránh farm ngay lập tức)
       profile.stats.wrongPicks++;
     }
     cur.lastAt = now;
@@ -169,13 +179,13 @@ export function initRewards({ getStreets, onFocusStreet }) {
   function pickNextStreetIndex(Q) {
     if (!Q.length) return 0;
     const now = Date.now();
-    // 1. Ưu tiên đường cần ôn (đã từng sai hoặc đến hạn ôn tập)
+    // 1. Ưu tiên đường cần ôn (đã đến hạn ôn tập)
     const due = [];
     const unlearned = [];
     for (let i = 0; i < Q.length; i++) {
       const n = Q[i].n;
       const m = state.mastery[n];
-      if (m && (m.nextAt <= now || (m.wrong > m.ok && state.learned.has(n)))) {
+      if (m && (m.nextAt || 0) <= now) {
         due.push(i);
       } else if (!state.learned.has(n)) {
         unlearned.push(i);
@@ -194,17 +204,19 @@ export function initRewards({ getStreets, onFocusStreet }) {
   }
 
   // Các hook sự kiện gameplay
-  function onQuestComplete(streetName, isField, isFirstTime) {
+  function onQuestComplete(streetName, isField, isFirstTime, earnReward = true) {
     touchStreak();
-    profile.stats.questsDone++;
-    if (isField) profile.stats.fieldDone++;
-    if (state.combo > profile.stats.maxCombo) profile.stats.maxCombo = state.combo;
-    recordAnswer(streetName, true);
-    if (isFirstTime) advanceDaily("learn", 1);
-    advanceDaily("quest", 1);
-    if (isField) advanceDaily("field", 1);
-    advanceDaily("combo", state.combo, true);
-    checkAchievements();
+    recordAnswer(streetName, true, earnReward);
+    if (earnReward) {
+      profile.stats.questsDone++;
+      if (isField) profile.stats.fieldDone++;
+      if (state.combo > profile.stats.maxCombo) profile.stats.maxCombo = state.combo;
+      if (isFirstTime) advanceDaily("learn", 1);
+      advanceDaily("quest", 1);
+      if (isField) advanceDaily("field", 1);
+      advanceDaily("combo", state.combo, true);
+      checkAchievements();
+    }
     if (isOpen()) render();
   }
 
@@ -302,12 +314,14 @@ export function initRewards({ getStreets, onFocusStreet }) {
       ? rows
           .map((s) => {
             const learned = state.learned.has(s.n);
-            const m = state.mastery[s.n] || { ok: 0, wrong: 0 };
+            const m = state.mastery[s.n] || { ok: 0, wrong: 0, nextAt: 0 };
+            const isDue = !learned || (m.nextAt || 0) <= now;
             const status = !learned
               ? '<span class="nb-tag new">Chưa thuộc</span>'
-              : m.wrong > m.ok
+              : m.wrong > m.ok || isDue
               ? '<span class="nb-tag warn">Cần ôn</span>'
               : '<span class="nb-tag ok">Đã thuộc</span>';
+            const btnTxt = !learned ? "Học ngay" : isDue ? "Ôn (+Thưởng)" : "Ôn lại (Luyện tập)";
             return `<div class="nb-row">
               <div>
                 <b>${s.n}</b>
@@ -315,7 +329,7 @@ export function initRewards({ getStreets, onFocusStreet }) {
               </div>
               <div class="nb-acts">
                 ${status}
-                <button class="nb-btn" data-st="${s.n.replace(/"/g, "&quot;")}">Ôn ngay</button>
+                <button class="nb-btn" data-st="${s.n.replace(/"/g, "&quot;")}">${btnTxt}</button>
               </div>
             </div>`;
           })
@@ -399,6 +413,7 @@ export function initRewards({ getStreets, onFocusStreet }) {
   return {
     toggle,
     isOpen,
+    canEarnReviewReward,
     pickNextStreetIndex,
     onQuestComplete,
     onStreetDiscovered,
